@@ -57,6 +57,7 @@ the widgets.
 - [Interactive WASM gallery](https://aodaruma.github.io/tweeq-egui/)
 - [API documentation](https://docs.rs/tweeq-egui)
 - [Architecture and port records](docs/rust-port/README.md)
+- [Slint対応とtweeq-rsへの移行方針](docs/slint-support-plan.md)
 - [Research and design background](docs/research.md)
 
 The gallery contains every implemented control and keeps its configuration

@@ -1,5 +1,8 @@
 # Tweeq Rust / egui 移植設計
 
+Slint対応と複数GUI構成への拡張案は、[Slint対応とtweeq-rsへの移行方針](../slint-support-plan.md)を
+参照してください。この文書群は、既存のegui移植の設計・経緯を記録しています。
+
 ## 現在地
 
 この文書群は、TweeqのVue実装をRustへ再設計し、最終的に
