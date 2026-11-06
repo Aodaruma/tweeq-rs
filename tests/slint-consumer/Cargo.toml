@@ -8,12 +8,12 @@ publish = false
 [workspace]
 
 [dependencies]
-tweeq-slint = { path = "packages/tweeq-slint-0.1.0-alpha.1" }
+tweeq-slint = { path = "packages/tweeq-slint-0.1.0-alpha.2" }
 slint = { version = "=1.18.1", default-features = false, features = ["compat-1-18", "backend-winit", "renderer-femtovg"] }
 
 [build-dependencies]
-tweeq-slint-build = { path = "packages/tweeq-slint-build-0.1.0-alpha.1" }
+tweeq-slint-build = { path = "packages/tweeq-slint-build-0.1.0-alpha.2" }
 slint-build = "=1.18.1"
 
 [patch.crates-io]
-tweeq-core = { path = "packages/tweeq-core-0.1.0-alpha.1" }
+tweeq-core = { path = "packages/tweeq-core-0.1.0-alpha.2" }

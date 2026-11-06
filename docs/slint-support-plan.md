@@ -248,6 +248,12 @@ Royalty-free 2.0には帰属表示に加え、Slint単体の再配布、Slint AP
 | 4. 無限ドラッグ | WindowsとWebでNumberとAngleの相対編集を継続でき、ロックを安全に解除できる | `feat(slint): support unbounded pointer dragging` |
 | 5. Colorの発展機能 | チャンネルのショートカット、複数色の相対編集、無限ドラッグを検証し、更新版をPagesで確認 | `feat(slint): add relative editing for selected colors` |
 
+更新版のcrate公開候補は `0.1.0-alpha.2`。公開前に
+`scripts/check-slint-consumer.ps1 -RunNative` でパッケージを展開し、外部アプリの
+Windows・WASMビルドとWindowsでの操作を確認する。crates.ioへ公開する場合は
+「Publish crate」ワークフローで `tweeq-core` から順に公開し、同じ版を参照する
+`tweeq-egui` と `tweeq-slint` を後にする。`tweeq-slint-build` は単独で検証できる。
+
 各フェーズの変更は検証後に個別にコミットし、`main`の履歴に残します。公開先の確認はデプロイ後に実施します。Goalはフェーズ5のコミットと公開先での動作確認が揃った時点で完了します。
 
 発展フェーズではWindowsのWinitとWebのPointer Lockから得た移動量を、通常ドラッグと同じ計算に渡します。取得失敗時は通常ドラッグを続け、取得後にロックを失った場合は編集を取り消します。Colorの相対編集は各色の開始値に同じ変化量を適用し、色相を循環、他のチャンネルを範囲内に収めます。既存の`EditOperation`とは別にSlint側の色操作イベントを用意します。

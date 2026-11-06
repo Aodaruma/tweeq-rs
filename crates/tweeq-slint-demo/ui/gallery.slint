@@ -1,6 +1,6 @@
 import { Button, CheckBox, ScrollView, VerticalBox } from "std-widgets.slint";
 import { TweeqNumber, TweeqAngle, TweeqColor, TweeqNumberView, TweeqColorView } from "@tweeq";
-export { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorView, TweeqInput, TweeqNumberView } from "@tweeq";
+export { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorMode, TweeqColorView, TweeqInput, TweeqNumberView } from "@tweeq";
 
 export struct GalleryRow {
     label: string,
@@ -71,7 +71,7 @@ export component Gallery inherits Window {
             TweeqColor { view: root.color-a; light: root.light; }
             TweeqColor { view: root.color-b; light: root.light; }
             Text {
-                text: "Click a swatch for the picker. Enter RGB or RGBA hex to set a color.";
+                text: "Click a swatch for the picker. Drag selected swatches to adjust together. Hold H/F, S, V, R, G, B or A to choose a channel.";
                 color: root.light ? #343c4f : #b4bdcf;
                 wrap: word-wrap;
             }

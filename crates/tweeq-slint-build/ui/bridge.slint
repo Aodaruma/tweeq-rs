@@ -1,10 +1,14 @@
 export enum TweeqAction {
     select, begin-text, commit-text, begin-number, begin-rotary, move, modifiers, finish, cancel, reset,
-    begin-color, preview-channel, preview-sv, finish-color, set-channel, set-hex,
+    begin-color, begin-relative-color, preview-channel, preview-sv, finish-color, set-channel, set-hex,
 }
 
 export enum TweeqChannel {
     red, green, blue, alpha, hue, saturation, value,
+}
+
+export enum TweeqColorMode {
+    saturation-value, alpha, hue, saturation, value, red, green, blue,
 }
 
 export struct TweeqInput {
@@ -23,6 +27,7 @@ export struct TweeqInput {
     control: bool,
     channel: TweeqChannel,
     capture: bool,
+    color-mode: TweeqColorMode,
 }
 
 export struct TweeqNumberView {

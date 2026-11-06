@@ -4612,11 +4612,11 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 
 [[package]]
 name = "tweeq-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "tweeq-demo"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "eframe",
  "tweeq-egui",
@@ -4627,7 +4627,7 @@ dependencies = [
 
 [[package]]
 name = "tweeq-egui"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "egui",
  "tweeq-core",
@@ -4635,18 +4635,18 @@ dependencies = [
 
 [[package]]
 name = "tweeq-slint"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "tweeq-core",
 ]
 
 [[package]]
 name = "tweeq-slint-build"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "tweeq-slint-demo"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "i-slint-backend-winit",
  "js-sys",

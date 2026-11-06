@@ -105,7 +105,7 @@ mod tests {
     };
     use tweeq_slint::ParamId;
 
-    use crate::{TweeqAction, TweeqInput, connect};
+    use crate::{TweeqAction, TweeqColorMode, TweeqInput, connect};
 
     use super::*;
 
@@ -149,13 +149,50 @@ mod tests {
             controller.relative_motion([100.0, 0.0]);
             controller.cancel();
             let restored = controller.state.borrow().editor.number(source);
-            outcome.set(Some((start, grabbed, value, finished, released, restored)));
+
+            let color_input = |key: &str, action| TweeqInput {
+                key: key.into(),
+                action,
+                control: true,
+                capture: true,
+                color_mode: TweeqColorMode::Red,
+                ..TweeqInput::default()
+            };
+            controller.input(&color_input("5", TweeqAction::Select));
+            controller.input(&color_input("6", TweeqAction::Select));
+            let colors = || {
+                let state = controller.state.borrow();
+                [5, 6].map(|id| state.editor.color_view(ParamId::from_u64(id)).unwrap().hex)
+            };
+            let before = colors();
+            let color_started =
+                controller.input(&color_input("5", TweeqAction::BeginRelativeColor));
+            let color_grabbed = controller.pointer.active() == Some(ParamId::from_u64(5));
+            controller.relative_motion([62.5, 0.0]);
+            let after = colors();
+            let color_finished = controller.input(&color_input("5", TweeqAction::Finish));
+            let color_released = controller.pointer.active().is_none();
+            controller.history(false);
+            let undone = colors();
+            controller.history(true);
+            let redone = colors();
+            let color_ok = color_started
+                && color_grabbed
+                && color_finished
+                && color_released
+                && after == ["#8C8CEB", "#FF5E52CC"]
+                && before == undone
+                && after == redone;
+
+            outcome.set(Some((
+                start, grabbed, value, finished, released, restored, color_ok,
+            )));
             slint::quit_event_loop().expect("active loop");
         });
         slint::run_event_loop().expect("native event loop");
         assert_eq!(
             result.get(),
-            Some((true, true, Some(4510.0), true, true, Some(4510.0)))
+            Some((true, true, Some(4510.0), true, true, Some(4510.0), true))
         );
     }
 }

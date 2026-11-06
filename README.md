@@ -80,8 +80,23 @@ to the demo. Native and WASM builds expose the same widget API.
 
 ## Slint α版
 
-Number、Angle、Colorの基本操作をWindowsとWebで試せます。
-外部アプリでの組み込みは[パッケージからビルドする利用例](tests/slint-consumer)を参照してください。
+Number、Angle、ColorをWindowsとWebで試せます。ギャラリーの
+「Unlimited relative drag」を有効にすると、相対操作でポインターをロックできます。
+
+色見本をクリックするとピッカーが開きます。CtrlまたはShiftを押しながらクリックして
+複数の色を選び、選択した色見本をドラッグすると、各色の開始値に同じ変化量を適用します。
+ドラッグ中は次のキーで調整先を切り替えられます。
+
+| キー | 調整先 |
+|---|---|
+| なし | 横で彩度、縦で明度 |
+| H、F、Shift | 色相 |
+| S、V | 彩度、明度 |
+| R、G、B | 赤、緑、青 |
+| A、Alt | 不透明度 |
+
+Escで取り消せます。確定した複数色の変更はUndoでまとめて戻せます。
+外部アプリへの組み込みは[パッケージからビルドする利用例](tests/slint-consumer)を参照してください。
 
 ## egui alpha compatibility
 

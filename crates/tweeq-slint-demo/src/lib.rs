@@ -1,11 +1,14 @@
 //! Tweeq Slint gallery.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use slint::{Color, ComponentHandle, Model, ModelRc, VecModel};
 use tweeq_slint::{
-    ColorChannel, EditEvent, Editor, GestureModifiers, NumberConstraints, NumberOptions, ParamId,
-    ParamSnapshot, ScrubStart,
+    ColorChannel, ColorMode, EditEvent, Editor, GestureModifiers, NumberConstraints, NumberOptions,
+    ParamId, ParamSnapshot, ScrubStart, SlintEditEvent,
 };
 
 slint::include_modules!();
@@ -169,9 +172,12 @@ impl State {
                 self.editor
                     .begin_rotary(id, [input.x, input.y], [input.width, input.height])
             }
-            TweeqAction::Move => self.editor.scrub(id, [input.dx, input.dy], modifiers),
+            TweeqAction::BeginRelativeColor => self.editor.begin_relative_color(id),
+            TweeqAction::Move => {
+                self.drag_motion(id, [input.dx, input.dy], modifiers, input.color_mode)
+            }
             TweeqAction::Modifiers => true,
-            TweeqAction::Finish => self.editor.commit_scrub(id),
+            TweeqAction::Finish => self.editor.commit_scrub(id) || self.editor.commit_color(id),
             TweeqAction::Cancel => {
                 self.editor.cancel_from(id);
                 true
@@ -192,11 +198,26 @@ impl State {
         }
     }
 
+    fn drag_motion(
+        &mut self,
+        id: ParamId,
+        motion: [f32; 2],
+        modifiers: GestureModifiers,
+        mode: TweeqColorMode,
+    ) -> bool {
+        self.editor.scrub(id, motion, modifiers)
+            || self
+                .editor
+                .scrub_color(id, motion, color_mode(mode, modifiers))
+    }
+
     fn record_events(&mut self) {
-        let events: Vec<_> = self.editor.drain_events().collect();
+        let events: Vec<_> = self.editor.drain_slint_events().collect();
         for event in events {
             self.last_event = format!("{event:?}");
-            self.history.record(event, &self.editor);
+            if let SlintEditEvent::Core(event) = event {
+                self.history.record(event, &self.editor);
+            }
         }
     }
 
@@ -268,6 +289,22 @@ fn channel(value: TweeqChannel) -> ColorChannel {
     }
 }
 
+fn color_mode(value: TweeqColorMode, modifiers: GestureModifiers) -> ColorMode {
+    let channel = match value {
+        _ if modifiers.fine || value == TweeqColorMode::Alpha => ColorChannel::Alpha,
+        _ if modifiers.fast => ColorChannel::Hue,
+        TweeqColorMode::SaturationValue => return ColorMode::SaturationValue,
+        TweeqColorMode::Hue => ColorChannel::Hue,
+        TweeqColorMode::Saturation => ColorChannel::Saturation,
+        TweeqColorMode::Value => ColorChannel::Value,
+        TweeqColorMode::Red => ColorChannel::Red,
+        TweeqColorMode::Green => ColorChannel::Green,
+        TweeqColorMode::Blue => ColorChannel::Blue,
+        TweeqColorMode::Alpha => ColorChannel::Alpha,
+    };
+    ColorMode::Channel(channel)
+}
+
 fn refresh(window: &Gallery, model: &VecModel<GalleryRow>, state: &RefCell<State>) {
     let (rows, colors, log, can_undo, can_redo) = {
         let mut state = state.borrow_mut();
@@ -298,6 +335,7 @@ struct Controller {
     state: RefCell<State>,
     model: Rc<VecModel<GalleryRow>>,
     pointer: pointer::Capture,
+    color_mode: Cell<TweeqColorMode>,
 }
 
 impl Controller {
@@ -315,6 +353,7 @@ impl Controller {
         {
             if self.pointer.targets(id) {
                 self.pointer.set_snap(input.snap);
+                self.color_mode.set(input.color_mode);
             }
             return true;
         }
@@ -324,6 +363,7 @@ impl Controller {
                 | TweeqAction::BeginNumber
                 | TweeqAction::BeginRotary
                 | TweeqAction::BeginColor
+                | TweeqAction::BeginRelativeColor
                 | TweeqAction::SetChannel
                 | TweeqAction::SetHex
                 | TweeqAction::Reset
@@ -335,8 +375,14 @@ impl Controller {
         if accepted
             && input.capture
             && window.get_unbounded()
-            && matches!(action, TweeqAction::BeginNumber | TweeqAction::BeginRotary)
+            && matches!(
+                action,
+                TweeqAction::BeginNumber
+                    | TweeqAction::BeginRotary
+                    | TweeqAction::BeginRelativeColor
+            )
         {
+            self.color_mode.set(input.color_mode);
             self.pointer.request(
                 &window,
                 id,
@@ -357,10 +403,12 @@ impl Controller {
     #[cfg(any(windows, target_arch = "wasm32"))]
     fn relative_motion(&self, motion: [f32; 2]) {
         if let Some(id) = self.pointer.active() {
-            self.state
-                .borrow_mut()
-                .editor
-                .scrub(id, motion, self.pointer.modifiers());
+            self.state.borrow_mut().drag_motion(
+                id,
+                motion,
+                self.pointer.modifiers(),
+                self.color_mode.get(),
+            );
             self.refresh();
         }
     }
@@ -404,6 +452,7 @@ fn connect(window: &Gallery) -> Rc<Controller> {
         state: RefCell::new(state),
         model,
         pointer: pointer::Capture::default(),
+        color_mode: Cell::default(),
     });
     controller.refresh();
 

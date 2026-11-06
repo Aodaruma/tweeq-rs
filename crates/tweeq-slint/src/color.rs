@@ -1,7 +1,7 @@
 use tweeq_core::{hsva_to_rgba, rgba_to_hsva};
 
 /// Channel edited by the Slint color controls.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorChannel {
     Red,
     Green,
@@ -10,6 +10,61 @@ pub enum ColorChannel {
     Hue,
     Saturation,
     Value,
+}
+
+/// Channels affected by one relative color gesture.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ColorMode {
+    #[default]
+    SaturationValue,
+    Channel(ColorChannel),
+}
+
+/// A color gesture expressed as cumulative logical-pixel displacement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColorAdjustment {
+    pub mode: ColorMode,
+    pub motion: [f32; 2],
+}
+
+impl ColorAdjustment {
+    /// Applies the same displacement to one color captured at edit start.
+    #[must_use]
+    pub fn apply(self, rgba: [f32; 4]) -> [f32; 4] {
+        self.transform(ColorParameter::new(rgba)).rgba
+    }
+
+    pub(crate) fn transform(self, mut color: ColorParameter) -> ColorParameter {
+        let [dx, dy] = self.motion;
+        if !dx.is_finite() || !dy.is_finite() {
+            return color;
+        }
+        let [h, s, v, a] = color.hsva();
+        let rgba = match self.mode {
+            ColorMode::SaturationValue => {
+                hsva_to_rgba([h, dx.mul_add(0.004, s), (-dy).mul_add(0.004, v), a])
+            }
+            ColorMode::Channel(channel) => {
+                let initial = match channel {
+                    ColorChannel::Red => color.rgba[0],
+                    ColorChannel::Green => color.rgba[1],
+                    ColorChannel::Blue => color.rgba[2],
+                    ColorChannel::Alpha => a,
+                    ColorChannel::Hue => h,
+                    ColorChannel::Saturation => s,
+                    ColorChannel::Value => v,
+                };
+                let value = if channel == ColorChannel::Hue {
+                    dx.mul_add(0.0025, initial).rem_euclid(1.0)
+                } else {
+                    dx.mul_add(0.004, initial)
+                };
+                color.change(channel, value)
+            }
+        };
+        color.set(rgba);
+        color
+    }
 }
 
 /// The color and channel values shown by the Slint controls.

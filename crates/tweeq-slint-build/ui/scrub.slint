@@ -1,10 +1,11 @@
-import { TweeqAction, TweeqBridge } from "bridge.slint";
+import { TweeqAction, TweeqBridge, TweeqColorMode } from "bridge.slint";
 
 export component ScrubArea inherits TouchArea {
     in property <string> param-key;
     in property <TweeqAction> begin-action: TweeqAction.begin-number;
     in property <bool> snap;
     in property <bool> relative: true;
+    in property <TweeqColorMode> color-mode;
     out property <bool> dragging: active;
     callback tap();
     callback focus-drag();
@@ -15,11 +16,13 @@ export component ScrubArea inherits TouchArea {
     private property <float> last-x;
     private property <float> last-y;
 
-    changed snap => {
+    function notify-modifiers() {
         if active {
-            TweeqBridge.input({ key: param-key, action: TweeqAction.modifiers, snap: snap });
+            TweeqBridge.input({ key: param-key, action: TweeqAction.modifiers, snap: snap, color-mode: color-mode });
         }
     }
+    changed snap => { notify-modifiers(); }
+    changed color-mode => { notify-modifiers(); }
 
     public function abort() {
         if active {
@@ -49,13 +52,14 @@ export component ScrubArea inherits TouchArea {
                     width: self.width / 1px, height: self.height / 1px,
                     shift: event.modifiers.shift, alt: event.modifiers.alt, snap: snap,
                     capture: relative && event.touch-finger-id == 0,
+                    color-mode: color-mode,
                 });
             }
             if active {
                 TweeqBridge.input({
                     key: param-key, action: TweeqAction.move, x: x, y: y,
                     dx: x - last-x, dy: y - last-y, shift: event.modifiers.shift,
-                    alt: event.modifiers.alt, snap: snap,
+                    alt: event.modifiers.alt, snap: snap, color-mode: color-mode,
                 });
                 last-x = x;
                 last-y = y;

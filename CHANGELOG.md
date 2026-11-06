@@ -9,6 +9,13 @@ Semantic Versioning after the `0.1.0-alpha` preview series.
   mismatch and platform-specific pointer behavior.
 - Add browser-backed WASM interaction tests and cross-platform native checks.
 
+## [0.1.0-alpha.2]
+
+- WindowsとWeb向けのSlintギャラリーと、外部アプリで組み込めるNumber・Angle・Color部品を追加。
+- Number・Angle・Colorの相対操作でポインターのロックに対応。
+- 色のチャンネル切り替えと、選択した複数色の相対編集に対応。
+- リポジトリを `tweeq-rs` に改名し、Pagesでegui版・Slint版・API文書を公開。
+
 ## [0.1.0-alpha.1] - 2026-07-22
 
 - Add the `tweeq-core`, `tweeq-egui`, and `tweeq-demo` Cargo workspace.

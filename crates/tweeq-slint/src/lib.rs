@@ -7,8 +7,8 @@ mod color;
 mod editor;
 mod rotary;
 
-pub use color::{ColorChannel, ColorView};
-pub use editor::{Editor, NumberOptions, NumberView, ScrubStart};
+pub use color::{ColorAdjustment, ColorChannel, ColorMode, ColorView};
+pub use editor::{Editor, NumberOptions, NumberView, ScrubStart, SlintEditEvent};
 pub use tweeq_core::{
     EditEvent, EditOperation, EditSessionId, GestureModifiers, NumberConstraints, ParamId,
     ParamSnapshot, ParamValue, hsva_to_rgba,

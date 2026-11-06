@@ -5,7 +5,9 @@ use tweeq_core::{
     ParamId, ParamSnapshot, ParamValue, Selection, TweakGesture, hsva_to_rgba, quantize,
 };
 
-use crate::color::{ColorChannel, ColorParameter, ColorView, format_hex, parse_hex};
+use crate::color::{
+    ColorAdjustment, ColorChannel, ColorMode, ColorParameter, ColorView, format_hex, parse_hex,
+};
 use crate::rotary::Rotary;
 
 /// Numeric constraints and interaction options kept on the Rust side.
@@ -72,6 +74,24 @@ struct Active {
     scrub: Option<Scrub>,
     last: Option<EditOperation>,
     color_hue: Option<f32>,
+    color_drag: Option<ColorDrag>,
+}
+
+#[derive(Debug)]
+struct ColorDrag {
+    captured: Vec<(ParamId, ColorParameter)>,
+    motion: [f32; 2],
+}
+
+/// An edit event from the Slint adapter.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum SlintEditEvent {
+    Core(EditEvent),
+    RelativeColor {
+        session: EditSessionId,
+        adjustment: ColorAdjustment,
+    },
 }
 
 /// Editing state shared by the controls in one Slint window.
@@ -82,6 +102,7 @@ pub struct Editor {
     order: Vec<ParamId>,
     selection: Selection,
     sessions: EditSessions,
+    slint_events: Vec<SlintEditEvent>,
     active: Option<Active>,
 }
 
@@ -189,9 +210,64 @@ impl Editor {
         true
     }
 
+    /// Captures the selected colors for a relative edit.
+    pub fn begin_relative_color(&mut self, id: ParamId) -> bool {
+        if !self.colors.contains_key(&id) {
+            return false;
+        }
+        self.cancel();
+        self.select(id, false, false);
+        let captured: Vec<_> = self
+            .selection
+            .iter()
+            .filter_map(|key| self.colors.get(&key).map(|color| (key, *color)))
+            .collect();
+        let targets = captured
+            .iter()
+            .map(|(id, color)| ParamSnapshot {
+                id: *id,
+                value: ParamValue::Color(color.rgba),
+            })
+            .collect();
+        self.capture(id, targets, None, None).color_drag = Some(ColorDrag {
+            captured,
+            motion: [0.0, 0.0],
+        });
+        true
+    }
+
+    /// Applies one relative movement sample to every captured color.
+    pub fn scrub_color(&mut self, id: ParamId, motion: [f32; 2], mode: ColorMode) -> bool {
+        let Some(active) = self.active.as_mut().filter(|edit| edit.source == id) else {
+            return false;
+        };
+        let Some(drag) = &mut active.color_drag else {
+            return false;
+        };
+        let total = [drag.motion[0] + motion[0], drag.motion[1] + motion[1]];
+        if !total.into_iter().all(f32::is_finite) {
+            return false;
+        }
+        drag.motion = total;
+        let adjustment = ColorAdjustment {
+            mode,
+            motion: total,
+        };
+        for (key, initial) in &drag.captured {
+            self.colors.insert(*key, adjustment.transform(*initial));
+        }
+        let session = active.session;
+        self.flush_sessions();
+        self.slint_events.push(SlintEditEvent::RelativeColor {
+            session,
+            adjustment,
+        });
+        true
+    }
+
     /// Updates one normalized channel during a color transaction.
     pub fn preview_channel(&mut self, id: ParamId, channel: ColorChannel, value: f32) -> bool {
-        if !self.active_color(id) || !value.is_finite() {
+        if !self.active_absolute_color(id) || !value.is_finite() {
             return false;
         }
         let Some(color) = self.colors.get_mut(&id) else {
@@ -204,7 +280,7 @@ impl Editor {
 
     /// Updates both coordinates of a saturation/value pad.
     pub fn preview_sv(&mut self, id: ParamId, saturation: f32, value: f32) -> bool {
-        if !self.active_color(id) || !saturation.is_finite() || !value.is_finite() {
+        if !self.active_absolute_color(id) || !saturation.is_finite() || !value.is_finite() {
             return false;
         }
         let [hue, _, _, alpha] = self.colors[&id].hsva();
@@ -241,7 +317,9 @@ impl Editor {
 
     /// Closes a color gesture as a single undoable transaction.
     pub fn commit_color(&mut self, id: ParamId) -> bool {
-        if !self.active_color(id) {
+        if !self.active.as_ref().is_some_and(|active| {
+            active.source == id && (active.color_hue.is_some() || active.color_drag.is_some())
+        }) {
             return false;
         }
         self.finish(true);
@@ -397,11 +475,12 @@ impl Editor {
 
     /// Parses and commits a text edit. Invalid text leaves the edit open.
     pub fn commit_text(&mut self, id: ParamId, text: &str) -> bool {
-        let Some(active) = self
-            .active
-            .as_ref()
-            .filter(|edit| edit.source == id && edit.scrub.is_none() && edit.color_hue.is_none())
-        else {
+        let Some(active) = self.active.as_ref().filter(|edit| {
+            edit.source == id
+                && edit.scrub.is_none()
+                && edit.color_hue.is_none()
+                && edit.color_drag.is_none()
+        }) else {
             return false;
         };
         let Ok(value) = text.trim().parse::<f64>() else {
@@ -464,9 +543,23 @@ impl Editor {
         }
     }
 
-    /// Removes and returns pending events in order.
+    /// Removes and returns shared events. Use `drain_slint_events` to observe relative color updates as well.
     pub fn drain_events(&mut self) -> impl Iterator<Item = EditEvent> + '_ {
-        self.sessions.drain()
+        self.drain_slint_events().filter_map(|event| match event {
+            SlintEditEvent::Core(event) => Some(event),
+            SlintEditEvent::RelativeColor { .. } => None,
+        })
+    }
+
+    /// Removes and returns both shared and Slint-specific events in order.
+    pub fn drain_slint_events(&mut self) -> impl Iterator<Item = SlintEditEvent> + '_ {
+        self.flush_sessions();
+        self.slint_events.drain(..)
+    }
+
+    fn flush_sessions(&mut self) {
+        self.slint_events
+            .extend(self.sessions.drain().map(SlintEditEvent::Core));
     }
 
     fn cancel_if_target(&mut self, id: ParamId) {
@@ -503,7 +596,7 @@ impl Editor {
         self.numbers.contains_key(&id) || self.colors.contains_key(&id)
     }
 
-    fn active_color(&self, id: ParamId) -> bool {
+    fn active_absolute_color(&self, id: ParamId) -> bool {
         self.active
             .as_ref()
             .is_some_and(|active| active.source == id && active.color_hue.is_some())
@@ -515,16 +608,17 @@ impl Editor {
         targets: Vec<ParamSnapshot>,
         scrub: Option<Scrub>,
         color_hue: Option<f32>,
-    ) {
+    ) -> &mut Active {
         let session = self.sessions.begin(source, targets.clone());
-        self.active = Some(Active {
+        self.active.insert(Active {
             source,
             session,
             targets,
             scrub,
             last: None,
             color_hue,
-        });
+            color_drag: None,
+        })
     }
 
     fn apply(&mut self, operation: EditOperation, step: bool) {
@@ -561,13 +655,17 @@ impl Editor {
             return;
         };
         if !commit {
-            for target in active.targets {
-                self.set_snapshot(&target);
-            }
-            if let Some(hue) = active.color_hue
-                && let Some(color) = self.colors.get_mut(&active.source)
-            {
-                color.hue = hue;
+            if let Some(drag) = active.color_drag {
+                self.colors.extend(drag.captured);
+            } else {
+                for target in active.targets {
+                    self.set_snapshot(&target);
+                }
+                if let Some(hue) = active.color_hue
+                    && let Some(color) = self.colors.get_mut(&active.source)
+                {
+                    color.hue = hue;
+                }
             }
         }
         self.sessions.finish(active.session, commit);
@@ -598,6 +696,43 @@ mod tests {
         assert!(!editor.set_color_hex(id, "#%#!invalid"));
         assert!(editor.set_color_hex(id, "#33669980"));
         assert_eq!(editor.color_view(id).unwrap().hex, "#33669980");
+    }
+
+    #[test]
+    fn relative_color_uses_each_snapshot_and_preserves_event_order() {
+        let a = ParamId::from_u64(1);
+        let b = ParamId::from_u64(2);
+        let initial_a = [0.25, 0.5, 0.0, 0.5];
+        let initial_b = [0.875, 0.0, 0.5, 1.0];
+        let mut editor = Editor::default();
+        editor.insert_color(a, initial_a);
+        editor.insert_color(b, initial_b);
+        editor.select(a, false, false);
+        editor.select(b, false, true);
+        assert!(editor.begin_relative_color(a));
+        assert!(editor.scrub_color(a, [62.5, 0.0], ColorMode::Channel(ColorChannel::Red)));
+        assert_eq!(
+            editor.value(a),
+            Some(ParamValue::Color([0.5, 0.5, 0.0, 0.5]))
+        );
+        assert_eq!(
+            editor.value(b),
+            Some(ParamValue::Color([1.0, 0.0, 0.5, 1.0]))
+        );
+        editor.cancel();
+        assert_eq!(editor.value(a), Some(ParamValue::Color(initial_a)));
+        assert_eq!(editor.value(b), Some(ParamValue::Color(initial_b)));
+        let events: Vec<_> = editor.drain_slint_events().collect();
+        assert!(matches!(events.as_slice(), [
+            SlintEditEvent::Core(EditEvent::Begin { session: begin, targets, .. }),
+            SlintEditEvent::RelativeColor { session: update, .. },
+            SlintEditEvent::Core(EditEvent::Cancel { session: cancel }),
+        ] if begin == update && update == cancel && targets.len() == 2));
+        let hue = ColorAdjustment {
+            mode: ColorMode::Channel(ColorChannel::Hue),
+            motion: [600.0, 0.0],
+        };
+        assert_eq!(format_hex(hue.apply([1.0, 0.0, 0.0, 1.0])), "#00FFFF");
     }
 
     #[test]

@@ -21,7 +21,7 @@ try {
     Copy-Item -Path (Join-Path $repo 'tests/slint-consumer/*') -Destination $output -Recurse
     Copy-Item -LiteralPath (Join-Path $repo 'Cargo.lock') -Destination $output
     foreach ($name in @('tweeq-core', 'tweeq-slint', 'tweeq-slint-build')) {
-        tar -xf (Join-Path $repo "target/package/$name-0.1.0-alpha.1.crate") -C $packages
+        tar -xf (Join-Path $repo "target/package/$name-0.1.0-alpha.2.crate") -C $packages
     }
     $manifest = Join-Path $output 'Cargo.toml'
     # Cargo archives use reproducible timestamps. Isolate the build to ensure

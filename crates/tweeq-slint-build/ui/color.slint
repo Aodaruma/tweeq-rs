@@ -1,4 +1,5 @@
-import { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorView } from "bridge.slint";
+import { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorMode, TweeqColorView } from "bridge.slint";
+import { ScrubArea } from "scrub.slint";
 
 component ColorField inherits Rectangle {
     in property <string> display;
@@ -100,6 +101,31 @@ export component TweeqColor inherits HorizontalLayout {
     preferred-width: 180px;
     spacing: 6px;
 
+    private property <bool> key-a;
+    private property <bool> key-h;
+    private property <bool> key-f;
+    private property <bool> key-s;
+    private property <bool> key-v;
+    private property <bool> key-r;
+    private property <bool> key-g;
+    private property <bool> key-b;
+    private property <TweeqColorMode> key-mode: key-a ? TweeqColorMode.alpha
+        : key-h || key-f ? TweeqColorMode.hue : key-s ? TweeqColorMode.saturation
+        : key-v ? TweeqColorMode.value : key-r ? TweeqColorMode.red
+        : key-g ? TweeqColorMode.green : key-b ? TweeqColorMode.blue : TweeqColorMode.saturation-value;
+
+    function set-channel-key(key: string, down: bool) -> bool {
+        if key == "a" || key == "A" { key-a = down; return true; }
+        if key == "h" || key == "H" { key-h = down; return true; }
+        if key == "f" || key == "F" { key-f = down; return true; }
+        if key == "s" || key == "S" { key-s = down; return true; }
+        if key == "v" || key == "V" { key-v = down; return true; }
+        if key == "r" || key == "R" { key-r = down; return true; }
+        if key == "g" || key == "G" { key-g = down; return true; }
+        if key == "b" || key == "B" { key-b = down; return true; }
+        return false;
+    }
+
     swatch := Rectangle {
         width: 28px;
         height: 28px;
@@ -117,15 +143,33 @@ export component TweeqColor inherits HorizontalLayout {
         }
         keys := FocusScope {
             key-pressed(event) => {
+                if event.text == Key.Escape && swatch-input.dragging {
+                    swatch-input.abort();
+                    return accept;
+                }
                 if event.text == Key.Return || event.text == " " {
                     picker.show();
                     return accept;
                 }
-                return reject;
+                return root.set-channel-key(event.text, true) ? accept : reject;
             }
-            TouchArea {
-                mouse-cursor: pointer;
-                clicked => {
+            key-released(event) => {
+                return root.set-channel-key(event.text, false) ? accept : reject;
+            }
+            changed has-focus => {
+                if !self.has-focus {
+                    swatch-input.abort();
+                    root.key-a = false; root.key-h = false; root.key-f = false; root.key-s = false;
+                    root.key-v = false; root.key-r = false; root.key-g = false; root.key-b = false;
+                }
+            }
+            swatch-input := ScrubArea {
+                param-key: root.view.key;
+                begin-action: TweeqAction.begin-relative-color;
+                color-mode: root.key-mode;
+                mouse-cursor: grab;
+                focus-drag => { keys.focus(); }
+                tap => {
                     keys.focus();
                     picker.show();
                 }
