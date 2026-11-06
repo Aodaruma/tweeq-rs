@@ -30,4 +30,4 @@ a lightweight code input, and a host-owned command palette.
 
 This gallery exercises the shared API and edit lifecycle. Platform and visual
 differences are tracked in the repository's
-[component parity audit](https://github.com/Aodaruma/tweeq-egui/blob/main/docs/rust-port/component-parity-audit.md).
+[component parity audit](https://github.com/Aodaruma/tweeq-rs/blob/main/docs/rust-port/component-parity-audit.md).

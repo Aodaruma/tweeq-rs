@@ -10,3 +10,5 @@ Numberはクリックで文字編集、ドラッグで値調整、Ctrlクリッ�
 Angleはダイヤルの中心を回るようにドラッグすると回転します。Qで45°刻みに調整できます。
 Colorは色見本からポップアップを開き、色相、彩度、明度、透明度を操作できます。
 HEXとRGBA・HSVA欄はEnterで確定します。チャンネルの入力範囲は0〜1です。
+
+WebギャラリーにはSlintの帰属表示があります。バッジはSixtyFPS GmbHの公式素材です。[Slint Brand Guidelines](https://slint.dev/brand-guidelines) · [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0/)

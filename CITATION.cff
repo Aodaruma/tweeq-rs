@@ -1,12 +1,12 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the Tweeq paper and this repository."
-title: "Tweeq for egui"
+title: "Tweeq for Rust"
 type: software
 version: 0.1.0-alpha.1
 date-released: 2026-07-22
 license: MIT
-repository-code: "https://github.com/Aodaruma/tweeq-egui"
-url: "https://aodaruma.github.io/tweeq-egui/"
+repository-code: "https://github.com/Aodaruma/tweeq-rs"
+url: "https://aodaruma.github.io/tweeq-rs/"
 authors:
   - family-names: Hashimoto
     given-names: Baku

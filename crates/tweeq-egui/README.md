@@ -24,7 +24,7 @@ native gallery. Native and WASM use the same public widget API.
 
 This is an alpha port. Platform pointer-grab behavior and some pixel-level
 details differ from the browser reference. See the
-[compatibility report](https://github.com/Aodaruma/tweeq-egui/blob/main/docs/rust-port/compatibility-report.md)
+[compatibility report](https://github.com/Aodaruma/tweeq-rs/blob/main/docs/rust-port/compatibility-report.md)
 for the current contract and known substitutions.
 
 Licensed under MIT. Tweeq was created by Baku Hashimoto; see `NOTICE.md` for

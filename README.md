@@ -1,24 +1,22 @@
 <div align="center">
 
 <img src="./assets/logo.svg" width="200" alt="Tweeq logo" />
-<h1>Tweeq for egui</h1>
+<h1>Tweeq for Rust</h1>
 
-<a href="https://aodaruma.github.io/tweeq-egui/">Documentation &amp; WASM gallery</a> ⌇ <a href="https://github.com/sponsors/baku89">Become a Sponsor</a>
+<a href="https://aodaruma.github.io/tweeq-rs/">eguiギャラリー</a> ⌇ <a href="https://aodaruma.github.io/tweeq-rs/slint/">Slintギャラリー</a> ⌇ <a href="https://aodaruma.github.io/tweeq-rs/api/">APIドキュメント</a> ⌇ <a href="https://github.com/sponsors/baku89">Become a Sponsor</a>
 
 </div>
 
 [![crates.io](https://img.shields.io/crates/v/tweeq-egui.svg)](https://crates.io/crates/tweeq-egui)
 [![docs.rs](https://docs.rs/tweeq-egui/badge.svg)](https://docs.rs/tweeq-egui)
-[![CI](https://github.com/Aodaruma/tweeq-egui/actions/workflows/ci.yml/badge.svg)](https://github.com/Aodaruma/tweeq-egui/actions/workflows/ci.yml)
+[![CI](https://github.com/Aodaruma/tweeq-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Aodaruma/tweeq-rs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!NOTE]
 > For a live demo of [the UIST paper](https://dl.acm.org/doi/10.1145/3746059.3747723), see [the original Tweeq paper page](https://baku89.github.io/tweeq/uist2025.html).
 
-Tweeq-style parameter-tuning widgets for Rust applications built with
-[egui](https://github.com/emilk/egui). The port keeps Tweeq's compact visual
-language and drag-to-tweak interactions while using explicit, Rust-friendly
-edit sessions for undo, cancellation, and simultaneous editing.
+Tweeqのパラメーター調整部品をRustアプリで利用できます。eguiとSlintのUIが
+ジェスチャー計算と編集イベントを共有し、取消・Undo・複数選択の操作を提供します。
 
 > `0.1.0-alpha.1` is an API preview. The public API and visual details may
 > change before `0.1.0`.
@@ -54,7 +52,9 @@ the widgets.
 
 - Run the native component gallery: `cargo run -p tweeq-demo`
 - Run the web gallery: `cd crates/tweeq-demo && trunk serve index.html --open`
-- [Interactive WASM gallery](https://aodaruma.github.io/tweeq-egui/)
+- [eguiのWebギャラリー](https://aodaruma.github.io/tweeq-rs/)
+- [SlintのWebギャラリー](https://aodaruma.github.io/tweeq-rs/slint/)
+- [SlintのWindowsデモと利用方法](crates/tweeq-slint-demo/README.md)
 - [API documentation](https://docs.rs/tweeq-egui)
 - [Architecture and port records](docs/rust-port/README.md)
 - [Slint対応とtweeq-rsへの移行方針](docs/slint-support-plan.md)
@@ -71,11 +71,19 @@ the same public API.
 | [`tweeq-core`](https://crates.io/crates/tweeq-core) | Renderer-independent IDs, edit sessions, selection, gestures, validation, and transforms | crates.io |
 | [`tweeq-egui`](https://crates.io/crates/tweeq-egui) | egui widgets, theme, overlays, pointer policy, and adapters | crates.io |
 | `tweeq-demo` | Native/WASM interactive component gallery | Repository only |
+| [`tweeq-slint`](crates/tweeq-slint/README.md) | Slintの編集処理とRust API | ソースで提供 |
+| [`tweeq-slint-build`](crates/tweeq-slint-build/README.md) | アプリが読み込むSlint部品のソース | ソースで提供 |
+| `tweeq-slint-demo` | Windows・WebのSlintギャラリー | デモ |
 
 The library crate depends only on `egui` and `tweeq-core`; `eframe` is confined
 to the demo. Native and WASM builds expose the same widget API.
 
-## Alpha compatibility
+## Slint α版
+
+Number、Angle、Colorの基本操作をWindowsとWebで試せます。
+外部アプリでの組み込みは[パッケージからビルドする利用例](tests/slint-consumer)を参照してください。
+
+## egui alpha compatibility
 
 Number, Angle/Rotary, Boolean, text, choice, vector/geometry, time, color, and
 advanced input families are implemented. Platform pointer-grab behavior and a
@@ -92,7 +100,7 @@ professionals. This Rust port is distributed under the same MIT license and
 retains the original copyright notice.
 
 The final Vue/TypeScript tree before the Rust-only switch is preserved by the
-annotated Git tag [`vue-final-reference`](https://github.com/Aodaruma/tweeq-egui/tree/vue-final-reference).
+annotated Git tag [`vue-final-reference`](https://github.com/Aodaruma/tweeq-rs/tree/vue-final-reference).
 The upstream browser implementation remains available at
 [baku89/tweeq](https://github.com/baku89/tweeq).
 

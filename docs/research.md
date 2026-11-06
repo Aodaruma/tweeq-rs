@@ -8,7 +8,7 @@ creative professionals.
 - Venue: ACM UIST 2025
 - Original browser gallery: [baku89.github.io/tweeq](https://baku89.github.io/tweeq/)
 - Original source: [baku89/tweeq](https://github.com/baku89/tweeq)
-- Final Vue tree formerly bundled here: [`vue-final-reference`](https://github.com/Aodaruma/tweeq-egui/tree/vue-final-reference)
+- Final Vue tree formerly bundled here: [`vue-final-reference`](https://github.com/Aodaruma/tweeq-rs/tree/vue-final-reference)
 
 ## Interaction principles retained by the Rust port
 
