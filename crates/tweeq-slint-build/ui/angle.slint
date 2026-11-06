@@ -1,0 +1,84 @@
+import { TweeqAction, TweeqNumberView } from "bridge.slint";
+import { TweeqNumber } from "number.slint";
+import { ScrubArea } from "scrub.slint";
+
+export component TweeqAngle inherits Rectangle {
+    in property <TweeqNumberView> view;
+    in property <float> rotation;
+    in property <bool> light;
+    in property <bool> enabled: true;
+    private property <bool> snap;
+
+    min-width: 28px;
+    preferred-width: 190px;
+    min-height: 28px;
+    max-height: 28px;
+
+    knob := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        background: root.light ? #eff0f3 : #292d39;
+        border-width: 1px;
+        border-color: root.view.selected || keys.has-focus ? #6b8cff
+            : root.light ? #cdd1da : #3d4452;
+
+        Rectangle {
+            x: 12px + Math.sin(root.rotation * 1deg) * 8px;
+            y: 12px - Math.cos(root.rotation * 1deg) * 8px;
+            width: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: root.light ? #254aab : #a1baff;
+        }
+
+        keys := FocusScope {
+            enabled: root.enabled;
+            focus-on-click: false;
+            key-pressed(event) => {
+                if event.text == Key.Escape && rotary.dragging {
+                    rotary.abort();
+                    return accept;
+                }
+                if event.text == "q" || event.text == "Q" {
+                    root.snap = true;
+                    return accept;
+                }
+                return reject;
+            }
+            key-released(event) => {
+                if event.text == "q" || event.text == "Q" {
+                    root.snap = false;
+                    return accept;
+                }
+                return reject;
+            }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.snap = false;
+                    rotary.abort();
+                }
+            }
+            rotary := ScrubArea {
+                enabled: root.enabled;
+                param-key: root.view.key;
+                snap: root.snap;
+                begin-action: TweeqAction.begin-rotary;
+                mouse-cursor: MouseCursor.grab;
+                tap => { keys.focus(); }
+                focus-drag => { keys.focus(); }
+            }
+        }
+    }
+
+    if root.width >= 115px: TweeqNumber {
+        x: 34px;
+        width: root.width - 34px;
+        view: root.view;
+        suffix: "°";
+        light: root.light;
+        enabled: root.enabled;
+    }
+}

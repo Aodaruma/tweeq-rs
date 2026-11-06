@@ -19,6 +19,8 @@ pub fn export_ui(destination: &Path) -> io::Result<PathBuf> {
         ("bridge.slint", include_str!("../ui/bridge.slint")),
         ("number.slint", include_str!("../ui/number.slint")),
         ("scrub.slint", include_str!("../ui/scrub.slint")),
+        ("angle.slint", include_str!("../ui/angle.slint")),
+        ("color.slint", include_str!("../ui/color.slint")),
     ] {
         let file = destination.join(name);
         if fs::read_to_string(&file)

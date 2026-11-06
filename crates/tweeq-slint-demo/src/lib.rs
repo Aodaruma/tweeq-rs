@@ -2,15 +2,18 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use slint::{ComponentHandle, Model, ModelRc, VecModel};
+use slint::{Color, ComponentHandle, Model, ModelRc, VecModel};
 use tweeq_slint::{
-    EditEvent, Editor, GestureModifiers, NumberConstraints, NumberOptions, ParamId, ParamSnapshot,
-    ParamValue, ScrubStart,
+    ColorChannel, EditEvent, Editor, GestureModifiers, NumberConstraints, NumberOptions, ParamId,
+    ParamSnapshot, ScrubStart,
 };
 
 slint::include_modules!();
 
-const ROWS: [(u64, &str, &str); 3] = [
+const ANGLE: u64 = 4;
+const COLOR_A: u64 = 5;
+const COLOR_B: u64 = 6;
+const ROWS: [(u64, &str, &str); 4] = [
     (1, "Opacity", "Absolute drag, step 0.01, Q snaps to 0.1."),
     (
         2,
@@ -21,6 +24,11 @@ const ROWS: [(u64, &str, &str); 3] = [
         3,
         "Precise number",
         "Click and confirm 16777217 without losing precision.",
+    ),
+    (
+        ANGLE,
+        "Rotation",
+        "Drag around the dial to turn. Q snaps to 45°.",
     ),
 ];
 
@@ -45,9 +53,9 @@ impl History {
                     let after: Vec<_> = before
                         .iter()
                         .filter_map(|entry| {
-                            editor.number(entry.id).map(|value| ParamSnapshot {
+                            editor.value(entry.id).map(|value| ParamSnapshot {
                                 id: entry.id,
-                                value: ParamValue::Number(value),
+                                value,
                             })
                         })
                         .collect();
@@ -71,9 +79,7 @@ impl History {
         if let Some(change) = source.pop() {
             let values = if redo { &change.after } else { &change.before };
             for snapshot in values {
-                if let ParamValue::Number(value) = snapshot.value {
-                    editor.set_number(snapshot.id, value);
-                }
+                editor.set_snapshot(snapshot);
             }
             destination.push(change);
         }
@@ -114,6 +120,17 @@ impl State {
             },
         );
         editor.insert_number(ParamId::from_u64(3), 16_777_217.0, NumberOptions::default());
+        editor.insert_number(
+            ParamId::from_u64(ANGLE),
+            35.0,
+            NumberOptions {
+                snap: Some(45.0),
+                default_value: Some(35.0),
+                ..NumberOptions::default()
+            },
+        );
+        editor.insert_color(ParamId::from_u64(COLOR_A), [0.3, 0.55, 0.92, 1.0]);
+        editor.insert_color(ParamId::from_u64(COLOR_B), [0.95, 0.37, 0.32, 0.8]);
         Self {
             editor,
             history: History::default(),
@@ -146,6 +163,10 @@ impl State {
                     modifiers,
                 },
             ),
+            TweeqAction::BeginRotary => {
+                self.editor
+                    .begin_rotary(id, [input.x, input.y], [input.width, input.height])
+            }
             TweeqAction::Move => self.editor.scrub(id, [input.dx, input.dy], modifiers),
             TweeqAction::Finish => self.editor.commit_scrub(id),
             TweeqAction::Cancel => {
@@ -153,6 +174,18 @@ impl State {
                 true
             }
             TweeqAction::Reset => self.editor.reset_number(id),
+            TweeqAction::BeginColor => self.editor.begin_color(id),
+            TweeqAction::PreviewChannel => {
+                self.editor
+                    .preview_channel(id, channel(input.channel), input.x)
+            }
+            TweeqAction::PreviewSv => self.editor.preview_sv(id, input.x, input.y),
+            TweeqAction::FinishColor => self.editor.commit_color(id),
+            TweeqAction::SetChannel => {
+                self.editor
+                    .set_color_channel(id, channel(input.channel), input.text.as_str())
+            }
+            TweeqAction::SetHex => self.editor.set_color_hex(id, input.text.as_str()),
         }
     }
 
@@ -164,6 +197,7 @@ impl State {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     fn rows(&self) -> impl Iterator<Item = GalleryRow> + '_ {
         ROWS.into_iter().map(|(id, label, description)| {
             let view = self
@@ -173,6 +207,15 @@ impl State {
             GalleryRow {
                 label: label.into(),
                 description: description.into(),
+                angle: id == ANGLE,
+                rotation: if id == ANGLE {
+                    self.editor
+                        .number(ParamId::from_u64(id))
+                        .unwrap_or_default()
+                        .rem_euclid(360.0) as f32
+                } else {
+                    0.0
+                },
                 number: TweeqNumberView {
                     key: id.to_string().into(),
                     display: view.display.into(),
@@ -184,14 +227,51 @@ impl State {
             }
         })
     }
+
+    fn color(&self, id: u64) -> TweeqColorView {
+        let view = self
+            .editor
+            .color_view(ParamId::from_u64(id))
+            .expect("registered color");
+        let [red, green, blue, alpha] = view.rgba;
+        let [hue, saturation, value, _] = view.hsva;
+        let [hue_r, hue_g, hue_b, _] = tweeq_slint::hsva_to_rgba([hue, 1.0, 1.0, 1.0]);
+        TweeqColorView {
+            key: id.to_string().into(),
+            rgba: Color::from_argb_f32(alpha, red, green, blue),
+            pure_hue: Color::from_argb_f32(1.0, hue_r, hue_g, hue_b),
+            hex: view.hex.into(),
+            red,
+            green,
+            blue,
+            alpha,
+            hue,
+            saturation,
+            value,
+            selected: view.selected,
+        }
+    }
+}
+
+fn channel(value: TweeqChannel) -> ColorChannel {
+    match value {
+        TweeqChannel::Red => ColorChannel::Red,
+        TweeqChannel::Green => ColorChannel::Green,
+        TweeqChannel::Blue => ColorChannel::Blue,
+        TweeqChannel::Alpha => ColorChannel::Alpha,
+        TweeqChannel::Hue => ColorChannel::Hue,
+        TweeqChannel::Saturation => ColorChannel::Saturation,
+        TweeqChannel::Value => ColorChannel::Value,
+    }
 }
 
 fn refresh(window: &Gallery, model: &VecModel<GalleryRow>, state: &RefCell<State>) {
-    let (rows, log, can_undo, can_redo) = {
+    let (rows, colors, log, can_undo, can_redo) = {
         let mut state = state.borrow_mut();
         state.record_events();
         (
             state.rows().collect::<Vec<_>>(),
+            [state.color(COLOR_A), state.color(COLOR_B)],
             state.last_event.clone(),
             !state.history.undo.is_empty(),
             !state.history.redo.is_empty(),
@@ -203,6 +283,9 @@ fn refresh(window: &Gallery, model: &VecModel<GalleryRow>, state: &RefCell<State
         }
     }
     window.set_event_log(log.into());
+    let [first, second] = colors;
+    window.set_color_a(first);
+    window.set_color_b(second);
     window.set_can_undo(can_undo);
     window.set_can_redo(can_redo);
 }
@@ -211,6 +294,7 @@ fn connect(window: &Gallery) {
     let state = Rc::new(RefCell::new(State::new()));
     let model = Rc::new(VecModel::from(state.borrow().rows().collect::<Vec<_>>()));
     window.set_rows(ModelRc::from(model.clone()));
+    refresh(window, &model, &state);
 
     let weak = window.as_weak();
     let input_state = state.clone();

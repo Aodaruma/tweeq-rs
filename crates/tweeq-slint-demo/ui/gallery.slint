@@ -1,22 +1,26 @@
 import { Button, ScrollView, VerticalBox } from "std-widgets.slint";
-import { TweeqNumber, TweeqNumberView } from "@tweeq";
-export { TweeqAction, TweeqBridge, TweeqInput, TweeqNumberView } from "@tweeq";
+import { TweeqNumber, TweeqAngle, TweeqColor, TweeqNumberView, TweeqColorView } from "@tweeq";
+export { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorView, TweeqInput, TweeqNumberView } from "@tweeq";
 
 export struct GalleryRow {
     label: string,
     description: string,
     number: TweeqNumberView,
+    angle: bool,
+    rotation: float,
 }
 
 export component Gallery inherits Window {
     title: "Tweeq Slint Gallery";
     preferred-width: 660px;
-    preferred-height: 520px;
+    preferred-height: 655px;
     min-width: 310px;
     min-height: 320px;
     background: light ? #f8f9fc : #171a22;
 
     in-out property <[GalleryRow]> rows;
+    in property <TweeqColorView> color-a;
+    in property <TweeqColorView> color-b;
     in property <string> event-log: "Ready";
     in property <bool> can-undo;
     in property <bool> can-redo;
@@ -48,8 +52,17 @@ export component Gallery inherits Window {
             for row in root.rows: VerticalLayout {
                 spacing: 4px;
                 Text { text: row.label; color: root.light ? #202530 : #f2f4f8; font-weight: 600; }
-                TweeqNumber { view: row.number; light: root.light; }
+                if !row.angle: TweeqNumber { view: row.number; light: root.light; }
+                if row.angle: TweeqAngle { view: row.number; rotation: row.rotation; light: root.light; }
                 Text { text: row.description; color: root.light ? #343c4f : #b4bdcf; wrap: word-wrap; }
+            }
+            Text { text: "Colors"; color: root.light ? #202530 : #f2f4f8; font-weight: 600; }
+            TweeqColor { view: root.color-a; light: root.light; }
+            TweeqColor { view: root.color-b; light: root.light; }
+            Text {
+                text: "Click a swatch for the picker. Enter RGB or RGBA hex to set a color.";
+                color: root.light ? #343c4f : #b4bdcf;
+                wrap: word-wrap;
             }
             Text {
                 text: root.event-log;

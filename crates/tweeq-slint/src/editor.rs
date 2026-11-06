@@ -2,8 +2,11 @@ use std::collections::BTreeMap;
 
 use tweeq_core::{
     EditEvent, EditOperation, EditSessionId, EditSessions, GestureModifiers, NumberConstraints,
-    ParamId, ParamSnapshot, ParamValue, Selection, TweakGesture, quantize,
+    ParamId, ParamSnapshot, ParamValue, Selection, TweakGesture, hsva_to_rgba, quantize,
 };
+
+use crate::color::{ColorChannel, ColorParameter, ColorView, format_hex, parse_hex};
+use crate::rotary::Rotary;
 
 /// Numeric constraints and interaction options kept on the Rust side.
 #[derive(Debug, Clone, Copy, Default)]
@@ -52,10 +55,13 @@ struct NumberParameter {
 }
 
 #[derive(Debug)]
-struct Scrub {
-    gesture: TweakGesture,
-    base: f64,
-    speed: f64,
+enum Scrub {
+    Numeric {
+        gesture: TweakGesture,
+        base: f64,
+        speed: f64,
+    },
+    Rotary(Rotary),
 }
 
 #[derive(Debug)]
@@ -65,12 +71,14 @@ struct Active {
     targets: Vec<ParamSnapshot>,
     scrub: Option<Scrub>,
     last: Option<EditOperation>,
+    color_hue: Option<f32>,
 }
 
-/// Numeric editing state shared by the controls in one Slint window.
+/// Editing state shared by the controls in one Slint window.
 #[derive(Debug, Default)]
 pub struct Editor {
     numbers: BTreeMap<ParamId, NumberParameter>,
+    colors: BTreeMap<ParamId, ColorParameter>,
     order: Vec<ParamId>,
     selection: Selection,
     sessions: EditSessions,
@@ -81,14 +89,18 @@ impl Editor {
     /// Registers a numeric parameter in visual selection order.
     pub fn insert_number(&mut self, id: ParamId, value: f64, options: NumberOptions) {
         self.cancel();
-        if !self.numbers.contains_key(&id) {
+        if !self.contains(id) {
             self.order.push(id);
         }
+        self.colors.remove(&id);
         self.numbers.insert(id, NumberParameter { value, options });
     }
 
     /// Removes a parameter and cancels any edit that captured it.
     pub fn remove_number(&mut self, id: ParamId) {
+        if !self.numbers.contains_key(&id) {
+            return;
+        }
         self.cancel_if_target(id);
         self.numbers.remove(&id);
         self.order.retain(|candidate| *candidate != id);
@@ -109,6 +121,131 @@ impl Editor {
     #[must_use]
     pub fn number(&self, id: ParamId) -> Option<f64> {
         Some(self.numbers.get(&id)?.value)
+    }
+
+    /// Registers a normalized RGBA color in visual selection order.
+    pub fn insert_color(&mut self, id: ParamId, rgba: [f32; 4]) {
+        self.cancel();
+        if !self.contains(id) {
+            self.order.push(id);
+        }
+        self.numbers.remove(&id);
+        self.colors.insert(id, ColorParameter::new(rgba));
+    }
+
+    /// Reads the current typed value, including any preview.
+    #[must_use]
+    pub fn value(&self, id: ParamId) -> Option<ParamValue> {
+        self.number(id).map(ParamValue::Number).or_else(|| {
+            self.colors
+                .get(&id)
+                .map(|color| ParamValue::Color(color.rgba))
+        })
+    }
+
+    /// Restores a previously captured value, such as an undo.
+    pub fn set_snapshot(&mut self, snapshot: &ParamSnapshot) {
+        match snapshot.value {
+            ParamValue::Number(value) => self.set_number(snapshot.id, value),
+            ParamValue::Color(value) => {
+                self.cancel_if_target(snapshot.id);
+                if let Some(color) = self.colors.get_mut(&snapshot.id) {
+                    color.set(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Returns the display data for a registered color.
+    #[must_use]
+    pub fn color_view(&self, id: ParamId) -> Option<ColorView> {
+        let color = *self.colors.get(&id)?;
+        Some(ColorView {
+            rgba: color.rgba,
+            hsva: color.hsva(),
+            hex: format_hex(color.rgba),
+            selected: self.selection.contains(id),
+        })
+    }
+
+    /// Opens a color transaction for a picker gesture.
+    pub fn begin_color(&mut self, id: ParamId) -> bool {
+        if !self.colors.contains_key(&id) {
+            return false;
+        }
+        self.cancel();
+        let color = self.colors[&id];
+        self.select(id, false, false);
+        self.capture(
+            id,
+            vec![ParamSnapshot {
+                id,
+                value: ParamValue::Color(color.rgba),
+            }],
+            None,
+            Some(color.hue),
+        );
+        true
+    }
+
+    /// Updates one normalized channel during a color transaction.
+    pub fn preview_channel(&mut self, id: ParamId, channel: ColorChannel, value: f32) -> bool {
+        if !self.active_color(id) || !value.is_finite() {
+            return false;
+        }
+        let Some(color) = self.colors.get_mut(&id) else {
+            return false;
+        };
+        let rgba = color.change(channel, value);
+        self.apply(EditOperation::SetColor(rgba), false);
+        true
+    }
+
+    /// Updates both coordinates of a saturation/value pad.
+    pub fn preview_sv(&mut self, id: ParamId, saturation: f32, value: f32) -> bool {
+        if !self.active_color(id) || !saturation.is_finite() || !value.is_finite() {
+            return false;
+        }
+        let [hue, _, _, alpha] = self.colors[&id].hsva();
+        self.apply(
+            EditOperation::SetColor(hsva_to_rgba([hue, saturation, value, alpha])),
+            false,
+        );
+        true
+    }
+
+    /// Commits a channel typed as a normalized decimal.
+    pub fn set_color_channel(&mut self, id: ParamId, channel: ColorChannel, text: &str) -> bool {
+        let Ok(value) = text.trim().parse::<f32>() else {
+            return false;
+        };
+        if !value.is_finite() || !self.begin_color(id) {
+            return false;
+        }
+        self.preview_channel(id, channel, value);
+        self.commit_color(id)
+    }
+
+    /// Commits RGB or RGBA hex input as one color edit.
+    pub fn set_color_hex(&mut self, id: ParamId, text: &str) -> bool {
+        let Some(rgba) = parse_hex(text) else {
+            return false;
+        };
+        if !self.begin_color(id) {
+            return false;
+        }
+        self.apply(EditOperation::SetColor(rgba), false);
+        self.commit_color(id)
+    }
+
+    /// Closes a color gesture as a single undoable transaction.
+    pub fn commit_color(&mut self, id: ParamId) -> bool {
+        if !self.active_color(id) {
+            return false;
+        }
+        self.finish(true);
+        true
     }
 
     /// Returns the data needed for the Slint view.
@@ -145,7 +282,7 @@ impl Editor {
 
     /// Updates the selection without starting an edit.
     pub fn select(&mut self, id: ParamId, range: bool, toggle: bool) {
-        if !self.numbers.contains_key(&id) {
+        if !self.contains(id) {
             return;
         }
         if range {
@@ -164,6 +301,7 @@ impl Editor {
 
     /// Starts either a bounded bar drag or a relative scrub.
     pub fn begin_scrub(&mut self, id: ParamId, start: ScrubStart) -> bool {
+        self.cancel();
         let Some(parameter) = self.numbers.get(&id) else {
             return false;
         };
@@ -182,11 +320,23 @@ impl Editor {
         };
         self.begin(
             id,
-            Some(Scrub {
+            Some(Scrub::Numeric {
                 gesture: TweakGesture::default(),
                 base,
                 speed,
             }),
+        )
+    }
+
+    /// Starts an angular scrub around the center of a rotary control.
+    pub fn begin_rotary(&mut self, id: ParamId, position: [f32; 2], size: [f32; 2]) -> bool {
+        self.cancel();
+        let Some(degrees) = self.number(id) else {
+            return false;
+        };
+        self.begin(
+            id,
+            Some(Scrub::Rotary(Rotary::new(position, size, degrees))),
         )
     }
 
@@ -206,15 +356,24 @@ impl Editor {
             .options
             .snap
             .filter(|value| value.is_finite() && *value > 0.0);
-        let update = scrub.gesture.update(
-            motion,
-            scrub.speed,
-            modifiers,
-            snap.unwrap_or(10.0),
-            0.01..=100.0,
-        );
-        let mut candidate = scrub.base + update.accumulated_delta;
-        if update.snap
+        let mut candidate = match scrub {
+            Scrub::Numeric {
+                gesture,
+                base,
+                speed,
+            } => {
+                let update = gesture.update(
+                    motion,
+                    *speed,
+                    modifiers,
+                    snap.unwrap_or(10.0),
+                    0.01..=100.0,
+                );
+                *base + update.accumulated_delta
+            }
+            Scrub::Rotary(rotary) => rotary.update(motion, modifiers.fine),
+        };
+        if modifiers.snap
             && let Some(step) = snap
         {
             candidate = quantize(
@@ -241,7 +400,7 @@ impl Editor {
         let Some(active) = self
             .active
             .as_ref()
-            .filter(|edit| edit.source == id && edit.scrub.is_none())
+            .filter(|edit| edit.source == id && edit.scrub.is_none() && edit.color_hue.is_none())
         else {
             return false;
         };
@@ -336,6 +495,27 @@ impl Editor {
                 })
             })
             .collect();
+        self.capture(source, targets, scrub, None);
+        true
+    }
+
+    fn contains(&self, id: ParamId) -> bool {
+        self.numbers.contains_key(&id) || self.colors.contains_key(&id)
+    }
+
+    fn active_color(&self, id: ParamId) -> bool {
+        self.active
+            .as_ref()
+            .is_some_and(|active| active.source == id && active.color_hue.is_some())
+    }
+
+    fn capture(
+        &mut self,
+        source: ParamId,
+        targets: Vec<ParamSnapshot>,
+        scrub: Option<Scrub>,
+        color_hue: Option<f32>,
+    ) {
         let session = self.sessions.begin(source, targets.clone());
         self.active = Some(Active {
             source,
@@ -343,8 +523,8 @@ impl Editor {
             targets,
             scrub,
             last: None,
+            color_hue,
         });
-        true
     }
 
     fn apply(&mut self, operation: EditOperation, step: bool) {
@@ -352,6 +532,12 @@ impl Editor {
             return;
         };
         for target in &active.targets {
+            if let EditOperation::SetColor(rgba) = operation {
+                if let Some(color) = self.colors.get_mut(&target.id) {
+                    color.set(rgba);
+                }
+                continue;
+            }
             let ParamValue::Number(initial) = target.value else {
                 continue;
             };
@@ -376,11 +562,12 @@ impl Editor {
         };
         if !commit {
             for target in active.targets {
-                if let ParamValue::Number(value) = target.value
-                    && let Some(parameter) = self.numbers.get_mut(&target.id)
-                {
-                    parameter.value = value;
-                }
+                self.set_snapshot(&target);
+            }
+            if let Some(hue) = active.color_hue
+                && let Some(color) = self.colors.get_mut(&active.source)
+            {
+                color.hue = hue;
             }
         }
         self.sessions.finish(active.session, commit);
@@ -390,6 +577,28 @@ impl Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_preview_cancels_to_the_captured_color_and_hex_keeps_alpha() {
+        let id = ParamId::from_u64(1);
+        let mut editor = Editor::default();
+        editor.insert_color(id, [0.1, 0.2, 0.3, 0.4]);
+        assert!(editor.begin_color(id));
+        assert!(editor.preview_channel(id, ColorChannel::Hue, 0.25));
+        assert!(editor.preview_sv(id, 0.8, 0.7));
+        assert_ne!(
+            editor.value(id),
+            Some(ParamValue::Color([0.1, 0.2, 0.3, 0.4]))
+        );
+        editor.cancel();
+        assert_eq!(
+            editor.value(id),
+            Some(ParamValue::Color([0.1, 0.2, 0.3, 0.4]))
+        );
+        assert!(!editor.set_color_hex(id, "#%#!invalid"));
+        assert!(editor.set_color_hex(id, "#33669980"));
+        assert_eq!(editor.color_view(id).unwrap().hex, "#33669980");
+    }
 
     #[test]
     fn unchanged_text_keeps_double_precision_and_cancel_restores_a_selection() {

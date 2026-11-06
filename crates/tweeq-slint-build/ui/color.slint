@@ -1,0 +1,239 @@
+import { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorView } from "bridge.slint";
+
+component ColorField inherits Rectangle {
+    in property <string> display;
+    in property <bool> light;
+    callback commit(string) -> bool;
+    private property <bool> invalid;
+    min-width: 34px;
+    height: 28px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: invalid ? #e86967 : input.has-focus ? #6b8cff : (light ? #cdd1da : #3d4452);
+    background: light ? #ffffff : #292d39;
+    clip: true;
+
+    changed display => {
+        if !input.has-focus { input.text = display; }
+    }
+
+    input := TextInput {
+        x: 5px;
+        width: parent.width - 10px;
+        height: parent.height;
+        text: root.display;
+        color: root.light ? #202530 : #f2f4f8;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        single-line: true;
+        accepted => {
+            root.invalid = !root.commit(self.text);
+            if !root.invalid { self.text = root.display; }
+        }
+        edited => { root.invalid = false; }
+        changed has-focus => {
+            if !self.has-focus {
+                self.text = root.display;
+                root.invalid = false;
+            }
+        }
+    }
+}
+
+component ColorArea inherits TouchArea {
+    in property <string> param-key;
+    in property <TweeqChannel> channel;
+    in property <bool> sv;
+    private property <bool> active;
+    mouse-cursor: crosshair;
+
+    function preview() {
+        TweeqBridge.input({
+            key: param-key, action: sv ? TweeqAction.preview-sv : TweeqAction.preview-channel,
+            channel: channel, x: self.mouse-x / self.width,
+            y: 1 - self.mouse-y / self.height,
+        });
+    }
+
+    pointer-event(event) => {
+        if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+            active = TweeqBridge.input({ key: param-key, action: TweeqAction.begin-color });
+            if active { preview(); }
+        }
+        if event.kind == PointerEventKind.move && active { preview(); }
+        if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && active {
+            active = false;
+            TweeqBridge.input({ key: param-key, action: TweeqAction.finish-color });
+        }
+        if event.kind == PointerEventKind.cancel && active {
+            active = false;
+            TweeqBridge.input({ key: param-key, action: TweeqAction.cancel });
+        }
+    }
+}
+
+component Track inherits Rectangle {
+    in property <string> param-key;
+    in property <TweeqChannel> channel;
+    in property <float> value;
+    height: 16px;
+    border-radius: 3px;
+    Rectangle {
+        x: (root.width - 8px) * root.value;
+        width: 8px;
+        height: parent.height;
+        border-width: 2px;
+        border-color: white;
+        border-radius: 3px;
+        background: #0006;
+    }
+    ColorArea { param-key: root.param-key; channel: root.channel; }
+}
+
+export component TweeqColor inherits HorizontalLayout {
+    in property <TweeqColorView> view;
+    in property <bool> light;
+    min-height: 28px;
+    max-height: 28px;
+    min-width: 85px;
+    preferred-width: 180px;
+    spacing: 6px;
+
+    swatch := Rectangle {
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: root.view.selected || keys.has-focus ? #6b8cff : #888;
+        background: @linear-gradient(135deg, #9095a0 50%, #d6d8de 50%);
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            background: root.view.rgba;
+            border-radius: 3px;
+        }
+        keys := FocusScope {
+            key-pressed(event) => {
+                if event.text == Key.Return || event.text == " " {
+                    picker.show();
+                    return accept;
+                }
+                return reject;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    keys.focus();
+                    picker.show();
+                }
+            }
+        }
+    }
+
+    ColorField {
+        display: root.view.hex;
+        light: root.light;
+        commit(text) => {
+            return TweeqBridge.input({ key: root.view.key, action: TweeqAction.set-hex, text: text });
+        }
+    }
+
+    private property <bool> picker-open: picker.is-open;
+    changed picker-open => {
+        if !picker-open {
+            TweeqBridge.input({ key: root.view.key, action: TweeqAction.cancel });
+            keys.focus();
+        }
+    }
+
+    picker := PopupWindow {
+        x: 0px;
+        y: root.height + 4px;
+        width: 244px;
+        height: 286px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            background: root.light ? #f8f9fc : #212530;
+            border-width: 1px;
+            border-color: #717887;
+            border-radius: 5px;
+            VerticalLayout {
+                padding: 9px;
+                spacing: 7px;
+
+                pad := Rectangle {
+                    height: 118px;
+                    border-radius: 3px;
+                    background: root.view.pure-hue;
+                    Rectangle { background: @linear-gradient(90deg, white, #fff0); }
+                    Rectangle { background: @linear-gradient(180deg, #0000, black); }
+                    Rectangle {
+                        x: (pad.width - 10px) * root.view.saturation;
+                        y: (pad.height - 10px) * (1 - root.view.value);
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 5px;
+                        border-width: 2px;
+                        border-color: white;
+                    }
+                    ColorArea { param-key: root.view.key; sv: true; }
+                }
+                Track {
+                    param-key: root.view.key;
+                    channel: TweeqChannel.hue;
+                    value: root.view.hue;
+                    background: @linear-gradient(90deg, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+                }
+                Track {
+                    param-key: root.view.key;
+                    channel: TweeqChannel.alpha;
+                    value: root.view.alpha;
+                    background: @linear-gradient(90deg, #888, root.view.pure-hue);
+                }
+                HorizontalLayout {
+                    spacing: 3px;
+                    for entry in [
+                        { name: "R", channel: TweeqChannel.red, value: root.view.red },
+                        { name: "G", channel: TweeqChannel.green, value: root.view.green },
+                        { name: "B", channel: TweeqChannel.blue, value: root.view.blue },
+                        { name: "A", channel: TweeqChannel.alpha, value: root.view.alpha },
+                    ]: VerticalLayout {
+                        spacing: 2px;
+                        Text { text: entry.name; color: root.light ? #202530 : #f2f4f8; }
+                        ColorField {
+                            display: entry.value.to-fixed(3);
+                            light: root.light;
+                            commit(text) => {
+                                return TweeqBridge.input({ key: root.view.key, action: TweeqAction.set-channel,
+                                    channel: entry.channel, text: text });
+                            }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 3px;
+                    for entry in [
+                        { name: "H", channel: TweeqChannel.hue, value: root.view.hue },
+                        { name: "S", channel: TweeqChannel.saturation, value: root.view.saturation },
+                        { name: "V", channel: TweeqChannel.value, value: root.view.value },
+                    ]: VerticalLayout {
+                        spacing: 2px;
+                        Text { text: entry.name; color: root.light ? #202530 : #f2f4f8; }
+                        ColorField {
+                            display: entry.value.to-fixed(3);
+                            light: root.light;
+                            commit(text) => {
+                                return TweeqBridge.input({ key: root.view.key, action: TweeqAction.set-channel,
+                                    channel: entry.channel, text: text });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

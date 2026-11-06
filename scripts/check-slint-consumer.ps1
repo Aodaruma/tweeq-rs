@@ -24,7 +24,9 @@ try {
         tar -xf (Join-Path $repo "target/package/$name-0.1.0-alpha.1.crate") -C $packages
     }
     $manifest = Join-Path $output 'Cargo.toml'
-    $target = Join-Path $repo 'target'
+    # Cargo archives use reproducible timestamps. Isolate the build to ensure
+    # it compiles this extraction even when the crate version is unchanged.
+    $target = Join-Path $output 'target'
     cargo "+$Toolchain" check --manifest-path $manifest --target-dir $target @offlineArgument
     cargo "+$Toolchain" check --manifest-path $manifest --target-dir $target --target wasm32-unknown-unknown @offlineArgument
     if ($RunNative) {

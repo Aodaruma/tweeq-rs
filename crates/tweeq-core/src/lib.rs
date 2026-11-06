@@ -21,6 +21,7 @@
 
 #![forbid(unsafe_code)]
 
+mod color;
 mod edit;
 mod gesture;
 mod id;
@@ -28,6 +29,7 @@ mod selection;
 mod validation;
 mod workspace;
 
+pub use color::{hsva_to_rgba, rgba_to_hsva};
 pub use edit::{
     EditEvent, EditOperation, EditSessionId, EditSessions, ParamKind, ParamSnapshot, ParamValue,
 };
