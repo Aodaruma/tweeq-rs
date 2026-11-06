@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use tweeq_core::{
-    EditEvent, EditOperation, EditSessionId, ParamId, ParamKind, ParamSnapshot, ParamValue,
-    Selection, TweakGesture,
+    EditEvent, EditOperation, EditSessionId, EditSessions, ParamId, ParamKind, ParamSnapshot,
+    ParamValue, Selection, TweakGesture,
 };
 
 use crate::TweeqTheme;
@@ -80,8 +80,7 @@ pub struct TweeqContext {
     scalar_drag_states: HashMap<ParamId, ScalarDragState>,
     rotary_states: HashMap<ParamId, RotaryState>,
     vector_drag_states: HashMap<ParamId, VectorDragState>,
-    events: Vec<EditEvent>,
-    next_session: u64,
+    sessions: EditSessions,
 }
 
 impl TweeqContext {
@@ -99,8 +98,7 @@ impl TweeqContext {
             scalar_drag_states: HashMap::new(),
             rotary_states: HashMap::new(),
             vector_drag_states: HashMap::new(),
-            events: Vec::new(),
-            next_session: 1,
+            sessions: EditSessions::default(),
         }
     }
 
@@ -122,7 +120,7 @@ impl TweeqContext {
 
     /// Drains edit events emitted since the previous call.
     pub fn drain_events(&mut self) -> impl Iterator<Item = EditEvent> + '_ {
-        self.events.drain(..)
+        self.sessions.drain()
     }
 
     /// Returns whether a parameter is part of the current selection.
@@ -193,8 +191,6 @@ impl TweeqContext {
     }
 
     pub(crate) fn start_edit(&mut self, source: ParamId, kind: ParamKind) -> EditSessionId {
-        let session = EditSessionId::from_u64(self.next_session);
-        self.next_session = self.next_session.wrapping_add(1).max(1);
         let mut target_ids: Vec<_> = self
             .selection
             .iter()
@@ -212,12 +208,7 @@ impl TweeqContext {
                     .map(|value| ParamSnapshot { id, value })
             })
             .collect();
-        self.events.push(EditEvent::Begin {
-            session,
-            source,
-            targets,
-        });
-        session
+        self.sessions.begin(source, targets)
     }
 
     pub(crate) fn start_exclusive_edit(
@@ -231,15 +222,11 @@ impl TweeqContext {
     }
 
     pub(crate) fn update_edit(&mut self, session: EditSessionId, operation: EditOperation) {
-        self.events.push(EditEvent::Update { session, operation });
+        self.sessions.update(session, operation);
     }
 
     pub(crate) fn finish_edit(&mut self, session: EditSessionId, commit: bool) {
-        self.events.push(if commit {
-            EditEvent::Commit { session }
-        } else {
-            EditEvent::Cancel { session }
-        });
+        self.sessions.finish(session, commit);
     }
 
     pub(crate) fn immediate_edit(

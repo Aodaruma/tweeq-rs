@@ -1,0 +1,32 @@
+export enum TweeqAction {
+    select, begin-text, commit-text, begin-number, move, finish, cancel, reset,
+}
+
+export struct TweeqInput {
+    key: string,
+    action: TweeqAction,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    dx: float,
+    dy: float,
+    text: string,
+    shift: bool,
+    alt: bool,
+    snap: bool,
+    control: bool,
+}
+
+export struct TweeqNumberView {
+    key: string,
+    display: string,
+    edit-text: string,
+    fraction: float,
+    bounded: bool,
+    selected: bool,
+}
+
+export global TweeqBridge {
+    callback input(TweeqInput) -> bool;
+}

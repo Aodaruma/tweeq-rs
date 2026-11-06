@@ -1,0 +1,155 @@
+import { TweeqAction, TweeqBridge, TweeqNumberView } from "bridge.slint";
+import { ScrubArea } from "scrub.slint";
+
+export component TweeqNumber inherits Rectangle {
+    in property <TweeqNumberView> view;
+    in property <string> suffix;
+    in property <bool> light;
+    in property <bool> enabled: true;
+    private property <bool> editing;
+    private property <bool> invalid;
+    private property <bool> snap;
+
+    min-width: 65px;
+    min-height: 28px;
+    max-height: 28px;
+    preferred-width: 210px;
+    preferred-height: 28px;
+    border-radius: 4px;
+    background: light ? #eff0f3 : #292d39;
+    border-width: 1px;
+    border-color: invalid ? #e86967 : (view.selected || keys.has-focus || field.has-focus)
+        ? #6b8cff : (light ? #cdd1da : #3d4452);
+    clip: true;
+
+    function open-editor() {
+        if enabled && !editing && TweeqBridge.input({ key: view.key, action: TweeqAction.begin-text }) {
+            field.text = view.edit-text;
+            invalid = false;
+            editing = true;
+            field.focus();
+            field.select-all();
+        }
+    }
+
+    function close-editor(commit: bool) {
+        if editing {
+            editing = false;
+            invalid = false;
+            if !commit || !TweeqBridge.input({ key: view.key, action: TweeqAction.commit-text, text: field.text }) {
+                TweeqBridge.input({ key: view.key, action: TweeqAction.cancel });
+            }
+        }
+    }
+
+    changed enabled => {
+        if !enabled {
+            close-editor(false);
+            mouse.abort();
+        }
+    }
+
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        height: root.height - 2px;
+        width: (root.width - 2px) * root.view.fraction;
+        background: root.light ? #d5dfff : #354970;
+        visible: root.view.bounded && !root.editing;
+        border-radius: 3px;
+    }
+
+    Text {
+        x: 8px;
+        width: root.width - 16px;
+        height: root.height;
+        text: root.view.display + root.suffix;
+        color: root.light ? #202530 : #f2f4f8;
+        font-size: 13px;
+        vertical-alignment: center;
+        horizontal-alignment: right;
+        overflow: elide;
+        visible: !root.editing;
+    }
+
+    keys := FocusScope {
+        enabled: root.enabled;
+        focus-on-click: false;
+
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                if root.editing {
+                    root.close-editor(false);
+                    self.focus();
+                    return accept;
+                }
+                if mouse.dragging {
+                    mouse.abort();
+                    return accept;
+                }
+            }
+            if !root.editing && (event.text == Key.Return || event.text == " ") {
+                root.open-editor();
+                return accept;
+            }
+            if !root.editing && (event.text == "q" || event.text == "Q") {
+                root.snap = true;
+                return accept;
+            }
+            return reject;
+        }
+
+        key-released(event) => {
+            if event.text == "q" || event.text == "Q" {
+                root.snap = false;
+                return accept;
+            }
+            return reject;
+        }
+
+        changed has-focus => {
+            if !self.has-focus {
+                root.snap = false;
+                mouse.abort();
+            }
+        }
+
+        mouse := ScrubArea {
+            enabled: root.enabled && !root.editing;
+            param-key: root.view.key;
+            snap: root.snap;
+            relative: !root.view.bounded;
+            tap => { root.open-editor(); }
+            focus-drag => { keys.focus(); }
+        }
+
+        field := TextInput {
+            x: 8px;
+            width: root.width - 16px;
+            height: root.height;
+            visible: root.editing;
+            enabled: root.editing;
+            single-line: true;
+            color: root.light ? #202530 : #f2f4f8;
+            font-size: 13px;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+
+            accepted => {
+                if TweeqBridge.input({ key: root.view.key, action: TweeqAction.commit-text, text: self.text }) {
+                    root.editing = false;
+                    root.invalid = false;
+                    keys.focus();
+                } else {
+                    root.invalid = true;
+                }
+            }
+            edited => { root.invalid = false; }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.close-editor(true);
+                }
+            }
+        }
+    }
+}

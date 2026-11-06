@@ -89,3 +89,52 @@ impl EditEvent {
         }
     }
 }
+
+/// Allocates session IDs and queues the edit lifecycle for a GUI adapter.
+#[derive(Debug, Clone)]
+pub struct EditSessions {
+    next: u64,
+    events: Vec<EditEvent>,
+}
+
+impl Default for EditSessions {
+    fn default() -> Self {
+        Self {
+            next: 1,
+            events: Vec::new(),
+        }
+    }
+}
+
+impl EditSessions {
+    /// Records the values captured before editing and returns the session ID.
+    pub fn begin(&mut self, source: ParamId, targets: Vec<ParamSnapshot>) -> EditSessionId {
+        let session = EditSessionId::from_u64(self.next);
+        self.next = self.next.wrapping_add(1).max(1);
+        self.events.push(EditEvent::Begin {
+            session,
+            source,
+            targets,
+        });
+        session
+    }
+
+    /// Queues a preview operation against the captured values.
+    pub fn update(&mut self, session: EditSessionId, operation: EditOperation) {
+        self.events.push(EditEvent::Update { session, operation });
+    }
+
+    /// Queues the terminal event selected by the adapter.
+    pub fn finish(&mut self, session: EditSessionId, commit: bool) {
+        self.events.push(if commit {
+            EditEvent::Commit { session }
+        } else {
+            EditEvent::Cancel { session }
+        });
+    }
+
+    /// Removes and returns pending events in emission order.
+    pub fn drain(&mut self) -> impl Iterator<Item = EditEvent> + '_ {
+        self.events.drain(..)
+    }
+}

@@ -14,8 +14,8 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-features --locked
+      - run: cargo clippy -p tweeq-core -p tweeq-egui -p tweeq-demo --all-targets --all-features --locked -- -D warnings
+      - run: cargo test -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked
 
   msrv:
     name: MSRV 1.92.0
@@ -26,9 +26,9 @@ jobs:
         with:
           components: clippy
           targets: wasm32-unknown-unknown
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-features --locked
-      - run: cargo check --workspace --all-features --locked --target wasm32-unknown-unknown
+      - run: cargo clippy -p tweeq-core -p tweeq-egui -p tweeq-demo --all-targets --all-features --locked -- -D warnings
+      - run: cargo test -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked
+      - run: cargo check -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked --target wasm32-unknown-unknown
 
   rustdoc:
     name: Rustdoc
@@ -48,7 +48,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - run: cargo check --workspace --all-features --locked --target wasm32-unknown-unknown
+      - run: cargo check -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked --target wasm32-unknown-unknown
+
+  slint:
+    name: Slint Windows and WASM (Rust 1.92)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - run: cargo clippy -p tweeq-slint -p tweeq-slint-build -p tweeq-slint-demo --all-targets --locked -- -D warnings
+      - run: cargo test -p tweeq-slint -p tweeq-slint-build --locked
+      - run: cargo check -p tweeq-slint-demo --target wasm32-unknown-unknown --locked
+      - run: ./scripts/check-slint-consumer.ps1
 
   package:
     name: Package dry run

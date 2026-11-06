@@ -1,0 +1,61 @@
+import { Button, ScrollView, VerticalBox } from "std-widgets.slint";
+import { TweeqNumber, TweeqNumberView } from "@tweeq";
+export { TweeqAction, TweeqBridge, TweeqInput, TweeqNumberView } from "@tweeq";
+
+export struct GalleryRow {
+    label: string,
+    description: string,
+    number: TweeqNumberView,
+}
+
+export component Gallery inherits Window {
+    title: "Tweeq Slint Gallery";
+    preferred-width: 660px;
+    preferred-height: 520px;
+    min-width: 310px;
+    min-height: 320px;
+    background: light ? #f8f9fc : #171a22;
+
+    in-out property <[GalleryRow]> rows;
+    in property <string> event-log: "Ready";
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    in-out property <bool> light;
+    callback undo();
+    callback redo();
+
+    ScrollView {
+        VerticalBox {
+            padding: 18px;
+            spacing: 12px;
+            Text {
+                text: "Tweeq / Slint";
+                color: root.light ? #202530 : #f2f4f8;
+                font-size: 26px;
+                font-weight: 700;
+            }
+            Text {
+                text: "Drag to adjust. Click to type. Ctrl-click or Shift-click to select multiple fields.";
+                color: root.light ? #343c4f : #b4bdcf;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button { text: "Undo"; enabled: root.can-undo; clicked => { root.undo(); } }
+                Button { text: "Redo"; enabled: root.can-redo; clicked => { root.redo(); } }
+                Button { text: root.light ? "Dark theme" : "Light theme"; clicked => { root.light = !root.light; } }
+            }
+            for row in root.rows: VerticalLayout {
+                spacing: 4px;
+                Text { text: row.label; color: root.light ? #202530 : #f2f4f8; font-weight: 600; }
+                TweeqNumber { view: row.number; light: root.light; }
+                Text { text: row.description; color: root.light ? #343c4f : #b4bdcf; wrap: word-wrap; }
+            }
+            Text {
+                text: root.event-log;
+                color: root.light ? #343c4f : #b4bdcf;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

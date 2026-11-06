@@ -28,7 +28,9 @@ mod selection;
 mod validation;
 mod workspace;
 
-pub use edit::{EditEvent, EditOperation, EditSessionId, ParamKind, ParamSnapshot, ParamValue};
+pub use edit::{
+    EditEvent, EditOperation, EditSessionId, EditSessions, ParamKind, ParamSnapshot, ParamValue,
+};
 pub use gesture::{GestureModifiers, GestureUpdate, TweakGesture};
 pub use id::ParamId;
 pub use selection::Selection;

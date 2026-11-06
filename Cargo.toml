@@ -3,7 +3,11 @@ members = [
     "crates/tweeq-core",
     "crates/tweeq-egui",
     "crates/tweeq-demo",
+    "crates/tweeq-slint",
+    "crates/tweeq-slint-build",
+    "crates/tweeq-slint-demo",
 ]
+default-members = ["crates/tweeq-core", "crates/tweeq-egui", "crates/tweeq-demo"]
 resolver = "3"
 
 [workspace.package]
@@ -19,6 +23,10 @@ egui = { version = "0.35.0", default-features = false, features = ["default_font
 eframe = { version = "0.35.0", default-features = false, features = ["default_fonts", "glow"] }
 tweeq-core = { path = "crates/tweeq-core", version = "=0.1.0-alpha.1" }
 tweeq-egui = { path = "crates/tweeq-egui", version = "=0.1.0-alpha.1" }
+tweeq-slint = { path = "crates/tweeq-slint", version = "=0.1.0-alpha.1" }
+tweeq-slint-build = { path = "crates/tweeq-slint-build", version = "=0.1.0-alpha.1" }
+slint = { version = "=1.18.1", default-features = false, features = ["compat-1-18", "backend-winit", "renderer-femtovg"] }
+slint-build = "=1.18.1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

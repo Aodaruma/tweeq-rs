@@ -1,0 +1,81 @@
+import { TweeqAction, TweeqBridge } from "bridge.slint";
+
+export component ScrubArea inherits TouchArea {
+    in property <string> param-key;
+    in property <TweeqAction> begin-action: TweeqAction.begin-number;
+    in property <bool> snap;
+    in property <bool> relative: true;
+    out property <bool> dragging: active;
+    callback tap();
+    callback focus-drag();
+    private property <bool> down;
+    private property <bool> active;
+    private property <float> start-x;
+    private property <float> start-y;
+    private property <float> last-x;
+    private property <float> last-y;
+
+    public function abort() {
+        if active {
+            TweeqBridge.input({ key: param-key, action: TweeqAction.cancel });
+        }
+        active = false;
+        down = false;
+    }
+
+    mouse-cursor: relative ? MouseCursor.ew-resize : MouseCursor.pointer;
+
+    pointer-event(event) => {
+        if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+            down = true;
+            start-x = self.mouse-x / 1px;
+            start-y = self.mouse-y / 1px;
+            last-x = start-x;
+            last-y = start-y;
+        }
+        if event.kind == PointerEventKind.move && down {
+            let x = self.mouse-x / 1px;
+            let y = self.mouse-y / 1px;
+            if !active && Math.abs(x - start-x) + Math.abs(y - start-y) >= 3 {
+                focus-drag();
+                active = TweeqBridge.input({
+                    key: param-key, action: begin-action, x: start-x, y: start-y,
+                    width: self.width / 1px, height: self.height / 1px,
+                    shift: event.modifiers.shift, alt: event.modifiers.alt, snap: snap,
+                });
+            }
+            if active {
+                TweeqBridge.input({
+                    key: param-key, action: TweeqAction.move, x: x, y: y,
+                    dx: x - last-x, dy: y - last-y, shift: event.modifiers.shift,
+                    alt: event.modifiers.alt, snap: snap,
+                });
+                last-x = x;
+                last-y = y;
+            }
+        }
+        if event.kind == PointerEventKind.up && event.button == PointerEventButton.left && down {
+            down = false;
+            if active {
+                active = false;
+                TweeqBridge.input({ key: param-key, action: TweeqAction.finish });
+            } else if self.has-hover {
+                if event.modifiers.control || event.modifiers.meta || event.modifiers.shift {
+                    TweeqBridge.input({
+                        key: param-key, action: TweeqAction.select,
+                        shift: event.modifiers.shift,
+                        control: event.modifiers.control || event.modifiers.meta,
+                    });
+                } else {
+                    tap();
+                }
+            }
+        }
+        if event.kind == PointerEventKind.up && event.button == PointerEventButton.right {
+            TweeqBridge.input({ key: param-key, action: TweeqAction.reset });
+        }
+        if event.kind == PointerEventKind.cancel {
+            abort();
+        }
+    }
+}

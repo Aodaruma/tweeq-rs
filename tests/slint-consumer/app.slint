@@ -1,0 +1,17 @@
+import { TweeqNumber, TweeqNumberView } from "@tweeq";
+export { TweeqAction, TweeqBridge, TweeqNumberView } from "@tweeq";
+
+export component Consumer inherits Window {
+    title: "External Tweeq consumer";
+    width: 320px;
+    height: 110px;
+    in property <TweeqNumberView> model;
+
+    TweeqNumber {
+        x: 20px;
+        y: 20px;
+        width: 240px;
+        height: 28px;
+        view: root.model;
+    }
+}

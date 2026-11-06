@@ -34,9 +34,9 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --workspace --all-features --locked
-      - run: cargo check --workspace --all-features --locked --target wasm32-unknown-unknown
+      - run: cargo clippy -p tweeq-core -p tweeq-egui -p tweeq-demo --all-targets --all-features --locked -- -D warnings
+      - run: cargo test -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked
+      - run: cargo check -p tweeq-core -p tweeq-egui -p tweeq-demo --all-features --locked --target wasm32-unknown-unknown
       - name: Verify crate package contents
         run: cargo package -p ${{ inputs.crate }} --list --locked
 
