@@ -46,6 +46,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 mod tests {
     #[test]
     fn exposes_workspace_version() {
-        assert!(!super::VERSION.is_empty());
+        assert_ne!(super::VERSION, "");
     }
 }
