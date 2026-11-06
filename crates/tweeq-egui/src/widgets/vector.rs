@@ -517,7 +517,7 @@ impl<'a> Size<'a> {
 
         let chain_rect = Rect::from_center_size(
             Pos2::new(
-                (width.response.rect.right() + height.response.rect.left()) * 0.5,
+                f32::midpoint(width.response.rect.right(), height.response.rect.left()),
                 inner.response.rect.center().y,
             ),
             Vec2::splat(theme.input_height),

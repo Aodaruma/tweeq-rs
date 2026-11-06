@@ -369,7 +369,7 @@ fn paint_timecode(
             let next = &segments[index + 1];
             ui.painter().text(
                 egui::pos2(
-                    (segment.rect.right() + next.rect.left()) * 0.5,
+                    f32::midpoint(segment.rect.right(), next.rect.left()),
                     rect.center().y,
                 ),
                 egui::Align2::CENTER_CENTER,
