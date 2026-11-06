@@ -10,6 +10,8 @@ use tweeq_slint::{
 
 slint::include_modules!();
 
+mod pointer;
+
 const ANGLE: u64 = 4;
 const COLOR_A: u64 = 5;
 const COLOR_B: u64 = 6;
@@ -168,6 +170,7 @@ impl State {
                     .begin_rotary(id, [input.x, input.y], [input.width, input.height])
             }
             TweeqAction::Move => self.editor.scrub(id, [input.dx, input.dy], modifiers),
+            TweeqAction::Modifiers => true,
             TweeqAction::Finish => self.editor.commit_scrub(id),
             TweeqAction::Cancel => {
                 self.editor.cancel_from(id);
@@ -290,54 +293,134 @@ fn refresh(window: &Gallery, model: &VecModel<GalleryRow>, state: &RefCell<State
     window.set_can_redo(can_redo);
 }
 
-fn connect(window: &Gallery) {
-    let state = Rc::new(RefCell::new(State::new()));
-    let model = Rc::new(VecModel::from(state.borrow().rows().collect::<Vec<_>>()));
-    window.set_rows(ModelRc::from(model.clone()));
-    refresh(window, &model, &state);
+struct Controller {
+    window: slint::Weak<Gallery>,
+    state: RefCell<State>,
+    model: Rc<VecModel<GalleryRow>>,
+    pointer: pointer::Capture,
+}
 
-    let weak = window.as_weak();
-    let input_state = state.clone();
-    let input_model = model.clone();
-    window.global::<TweeqBridge>().on_input(move |input| {
-        let accepted = input_state.borrow_mut().input(&input);
-        if let Some(window) = weak.upgrade() {
-            refresh(&window, &input_model, &input_state);
+impl Controller {
+    fn input(&self, input: &TweeqInput) -> bool {
+        let Ok(key) = input.key.parse::<u64>() else {
+            return false;
+        };
+        let id = ParamId::from_u64(key);
+        let Some(window) = self.window.upgrade() else {
+            return false;
+        };
+        let action = input.action;
+        if action == TweeqAction::Modifiers
+            || (action == TweeqAction::Move && self.pointer.active() == Some(id))
+        {
+            if self.pointer.targets(id) {
+                self.pointer.set_snap(input.snap);
+            }
+            return true;
         }
+        let starts_edit = matches!(
+            action,
+            TweeqAction::BeginText
+                | TweeqAction::BeginNumber
+                | TweeqAction::BeginRotary
+                | TweeqAction::BeginColor
+                | TweeqAction::SetChannel
+                | TweeqAction::SetHex
+                | TweeqAction::Reset
+        );
+        if starts_edit {
+            self.pointer.release(&window);
+        }
+        let accepted = self.state.borrow_mut().input(input);
+        if accepted
+            && input.capture
+            && window.get_unbounded()
+            && matches!(action, TweeqAction::BeginNumber | TweeqAction::BeginRotary)
+        {
+            self.pointer.request(
+                &window,
+                id,
+                GestureModifiers {
+                    fine: input.alt,
+                    fast: input.shift,
+                    snap: input.snap,
+                },
+            );
+        }
+        if matches!(action, TweeqAction::Finish | TweeqAction::Cancel) && self.pointer.targets(id) {
+            self.pointer.release(&window);
+        }
+        self.refresh();
         accepted
+    }
+
+    #[cfg(any(windows, target_arch = "wasm32"))]
+    fn relative_motion(&self, motion: [f32; 2]) {
+        if let Some(id) = self.pointer.active() {
+            self.state
+                .borrow_mut()
+                .editor
+                .scrub(id, motion, self.pointer.modifiers());
+            self.refresh();
+        }
+    }
+
+    fn cancel(&self) {
+        self.state.borrow_mut().editor.cancel();
+        if let Some(window) = self.window.upgrade() {
+            self.pointer.release(&window);
+        }
+        self.refresh();
+    }
+
+    fn history(&self, redo: bool) {
+        self.cancel();
+        {
+            let mut state = self.state.borrow_mut();
+            state.record_events();
+            let State {
+                editor, history, ..
+            } = &mut *state;
+            history.apply(editor, redo);
+            state.last_event = if redo { "Redo".into() } else { "Undo".into() };
+        }
+        self.refresh();
+    }
+
+    fn refresh(&self) {
+        if let Some(window) = self.window.upgrade() {
+            refresh(&window, &self.model, &self.state);
+            window.set_pointer_status(self.pointer.status().into());
+        }
+    }
+}
+
+fn connect(window: &Gallery) -> Rc<Controller> {
+    let state = State::new();
+    let model = Rc::new(VecModel::from(state.rows().collect::<Vec<_>>()));
+    window.set_rows(ModelRc::from(model.clone()));
+    let controller = Rc::new(Controller {
+        window: window.as_weak(),
+        state: RefCell::new(state),
+        model,
+        pointer: pointer::Capture::default(),
     });
+    controller.refresh();
 
-    let history = |redo| {
-        let weak = window.as_weak();
-        let state = state.clone();
-        let model = model.clone();
-        move || {
-            {
-                let mut state = state.borrow_mut();
-                state.editor.cancel();
-                state.record_events();
-                let State {
-                    editor, history, ..
-                } = &mut *state;
-                history.apply(editor, redo);
-                state.last_event = if redo { "Redo".into() } else { "Undo".into() };
-            }
-            if let Some(window) = weak.upgrade() {
-                refresh(&window, &model, &state);
-            }
-        }
-    };
-    window.on_undo(history(false));
-    window.on_redo(history(true));
-
-    let weak = window.as_weak();
+    let input = controller.clone();
+    window
+        .global::<TweeqBridge>()
+        .on_input(move |event| input.input(&event));
+    let undo = controller.clone();
+    window.on_undo(move || undo.history(false));
+    let redo = controller.clone();
+    window.on_redo(move || redo.history(true));
+    let close = controller.clone();
     window.window().on_close_requested(move || {
-        state.borrow_mut().editor.cancel();
-        if let Some(window) = weak.upgrade() {
-            refresh(&window, &model, &state);
-        }
+        close.cancel();
         slint::CloseRequestResponse::HideWindow
     });
+    controller
 }
 
 /// Launches the gallery on a native window.
@@ -346,8 +429,18 @@ fn connect(window: &Gallery) {
 ///
 /// Returns a Slint error if the window or event loop cannot start.
 pub fn run() -> Result<(), slint::PlatformError> {
+    #[cfg(windows)]
+    let handler = pointer::NativeHandler::default();
+    #[cfg(windows)]
+    slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .with_winit_custom_application_handler(handler.clone())
+        .select()?;
     let window = Gallery::new()?;
-    connect(&window);
+    let controller = connect(&window);
+    #[cfg(windows)]
+    handler.connect(&controller);
+    let _ = controller;
     window.run()
 }
 
@@ -371,7 +464,8 @@ fn start_web() -> Result<(), slint::PlatformError> {
         .build()?;
     slint::platform::set_platform(Box::new(backend)).map_err(|error| error.to_string())?;
     let window = Gallery::new()?;
-    connect(&window);
+    let controller = connect(&window);
+    controller.pointer.install_web(&controller);
     window.show()?;
     slint::run_event_loop()
 }

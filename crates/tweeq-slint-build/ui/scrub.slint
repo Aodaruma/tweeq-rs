@@ -15,6 +15,12 @@ export component ScrubArea inherits TouchArea {
     private property <float> last-x;
     private property <float> last-y;
 
+    changed snap => {
+        if active {
+            TweeqBridge.input({ key: param-key, action: TweeqAction.modifiers, snap: snap });
+        }
+    }
+
     public function abort() {
         if active {
             TweeqBridge.input({ key: param-key, action: TweeqAction.cancel });
@@ -42,6 +48,7 @@ export component ScrubArea inherits TouchArea {
                     key: param-key, action: begin-action, x: start-x, y: start-y,
                     width: self.width / 1px, height: self.height / 1px,
                     shift: event.modifiers.shift, alt: event.modifiers.alt, snap: snap,
+                    capture: relative && event.touch-finger-id == 0,
                 });
             }
             if active {

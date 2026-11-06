@@ -1,4 +1,4 @@
-import { Button, ScrollView, VerticalBox } from "std-widgets.slint";
+import { Button, CheckBox, ScrollView, VerticalBox } from "std-widgets.slint";
 import { TweeqNumber, TweeqAngle, TweeqColor, TweeqNumberView, TweeqColorView } from "@tweeq";
 export { TweeqAction, TweeqBridge, TweeqChannel, TweeqColorView, TweeqInput, TweeqNumberView } from "@tweeq";
 
@@ -25,6 +25,8 @@ export component Gallery inherits Window {
     in property <bool> can-undo;
     in property <bool> can-redo;
     in-out property <bool> light;
+    in-out property <bool> unbounded;
+    in property <string> pointer-status;
     callback undo();
     callback redo();
 
@@ -48,6 +50,15 @@ export component Gallery inherits Window {
                 Button { text: "Undo"; enabled: root.can-undo; clicked => { root.undo(); } }
                 Button { text: "Redo"; enabled: root.can-redo; clicked => { root.redo(); } }
                 Button { text: root.light ? "Dark theme" : "Light theme"; clicked => { root.light = !root.light; } }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                CheckBox { text: "Unlimited relative drag"; checked <=> root.unbounded; }
+                Text {
+                    text: root.pointer-status;
+                    color: root.light ? #343c4f : #b4bdcf;
+                    vertical-alignment: center;
+                }
             }
             for row in root.rows: VerticalLayout {
                 spacing: 4px;

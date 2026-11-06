@@ -15,9 +15,15 @@ crate-type = ["cdylib", "rlib"]
 slint.workspace = true
 tweeq-slint.workspace = true
 
+[target.'cfg(target_os = "windows")'.dependencies]
+slint = { workspace = true, features = ["unstable-winit-030"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 i-slint-backend-winit = { version = "=1.18.1", default-features = false, features = ["renderer-femtovg"] }
+js-sys = "0.3"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Document", "Element", "Event", "EventTarget", "MouseEvent", "Window"] }
 
 [build-dependencies]
 slint-build.workspace = true

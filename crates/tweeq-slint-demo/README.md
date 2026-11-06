@@ -11,4 +11,8 @@ Angleはダイヤルの中心を回るようにドラッグすると回転しま
 Colorは色見本からポップアップを開き、色相、彩度、明度、透明度を操作できます。
 HEXとRGBA・HSVA欄はEnterで確定します。チャンネルの入力範囲は0〜1です。
 
+`Unlimited relative drag`をオンにすると、相対NumberとAngleのドラッグ中にポインターをロックします。
+ロックを取得できない場合も、通常のドラッグで調整できます。
+Escapeで取り消し、フォーカスを失った場合も編集前の値に戻ります。
+
 WebギャラリーにはSlintの帰属表示があります。バッジはSixtyFPS GmbHの公式素材です。[Slint Brand Guidelines](https://slint.dev/brand-guidelines) · [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0/)
